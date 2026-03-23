@@ -48,6 +48,7 @@ export interface DashboardChatView {
   canWrite: boolean;
   messages: Array<{
     id: string;
+    kind: "player" | "system";
     authorName: string;
     authorId: string;
     content: string;
@@ -57,6 +58,7 @@ export interface DashboardChatView {
 
 export interface DashboardStatePayload {
   version: number;
+  serverNow: number;
   viewer: {
     userId: string;
     displayName: string;
@@ -106,6 +108,7 @@ export interface DashboardStatePayload {
 export interface DashboardStateResponse {
   changed: boolean;
   version: number;
+  serverNow: number;
   state?: DashboardStatePayload;
 }
 
@@ -114,10 +117,12 @@ export function buildDashboardState(
   userId: string,
   sinceVersion?: number,
 ): DashboardStateResponse {
+  const serverNow = Date.now();
   if (sinceVersion && sinceVersion === game.stateVersion) {
     return {
       changed: false,
       version: game.stateVersion,
+      serverNow,
     };
   }
 
@@ -125,6 +130,7 @@ export function buildDashboardState(
   const orderedPlayers = [...game.players.values()];
   const state: DashboardStatePayload = {
     version: game.stateVersion,
+    serverNow,
     viewer: {
       userId,
       displayName: player.displayName,
@@ -197,6 +203,7 @@ export function buildDashboardState(
   return {
     changed: true,
     version: game.stateVersion,
+    serverNow,
     state,
   };
 }
@@ -438,7 +445,9 @@ function buildTrialControls(
     type: "buttons",
     actionType: "trial_vote",
     title: "찬반 투표",
-    description: "현재 대상을 처형할지 선택합니다.",
+    description: game.currentTrialTargetId
+      ? `${game.getPlayerOrThrow(game.currentTrialTargetId).displayName} 님을 처형할지 선택합니다.`
+      : "현재 대상을 처형할지 선택합니다.",
     buttons: [
       { label: "찬성", value: "yes" },
       { label: "반대", value: "no" },
@@ -456,6 +465,7 @@ function buildChatView(game: MafiaGame, channel: WebChatChannel, userId?: string
     canWrite: userId ? game.canWriteChat(userId, channel) : false,
     messages: game.webChats[channel].map((message) => ({
       id: message.id,
+      kind: message.kind,
       authorId: message.authorId,
       authorName: message.authorName,
       content: message.content,

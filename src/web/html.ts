@@ -13,7 +13,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
     <title>Discord Mafia Dashboard</title>
     <style>
       :root {
-        --bg: #07101c;
+        --bg: #0a0a0b;
         --panel: rgba(255, 255, 255, 0.07);
         --panel-soft: rgba(255, 255, 255, 0.045);
         --panel-strong: rgba(255, 255, 255, 0.09);
@@ -40,9 +40,9 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         margin: 0;
         min-height: 100vh;
         background:
-          radial-gradient(circle at top left, rgba(245, 180, 95, 0.16), transparent 34%),
-          radial-gradient(circle at bottom right, rgba(117, 209, 162, 0.12), transparent 28%),
-          linear-gradient(145deg, #050d17 0%, #0a1423 44%, #0f1a2d 100%);
+          radial-gradient(circle at top left, rgba(245, 180, 95, 0.12), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(255, 104, 104, 0.08), transparent 26%),
+          linear-gradient(145deg, #060606 0%, #101011 42%, #171719 100%);
         color: var(--text);
         font-family: "Segoe UI Variable", "Noto Sans KR", "Malgun Gothic", sans-serif;
       }
@@ -61,8 +61,8 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         border: 1px solid var(--border);
         border-radius: 22px;
         background:
-          linear-gradient(150deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent);
+          linear-gradient(150deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent);
         box-shadow: var(--shadow);
       }
 
@@ -84,6 +84,15 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         font-size: 1.12rem;
         line-height: 1.2;
       }
+
+      .nick-color-1 { color: #ff7171; }
+      .nick-color-2 { color: #ffab63; }
+      .nick-color-3 { color: #ffe168; }
+      .nick-color-4 { color: #75dd9f; }
+      .nick-color-5 { color: #70b4ff; }
+      .nick-color-6 { color: #c597ff; }
+      .nick-color-7 { color: #f5f7fb; }
+      .nick-color-8 { color: #ff94d1; }
 
       .hero p {
         margin: 0;
@@ -144,7 +153,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         overflow: hidden;
         border: 1px solid var(--border);
         border-radius: 24px;
-        background: var(--panel);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.03));
         box-shadow: var(--shadow);
       }
 
@@ -183,23 +192,31 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       .viewer-stack,
       .card-list,
       .line-list,
-      .chat-list,
       .control-list,
       .secret-stack {
         display: grid;
         gap: 10px;
       }
 
-      .line-list,
-      .chat-list {
+      .line-list {
         max-height: min(42vh, 360px);
         overflow: auto;
         padding-right: 2px;
       }
 
+      .chat-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: 100%;
+        max-height: none;
+        overflow: auto;
+        padding: 4px 2px 2px;
+        scroll-behavior: smooth;
+      }
+
       .viewer-card,
       .line-item,
-      .chat-message,
       .control,
       .secret-chat {
         padding: 14px;
@@ -220,7 +237,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
       .viewer-card strong,
       .line-item strong,
-      .chat-message strong,
       .control strong {
         display: block;
         margin-bottom: 6px;
@@ -250,7 +266,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         border-radius: 12px;
         background:
           linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
-          rgba(9, 16, 29, 0.74);
+          rgba(18, 18, 20, 0.82);
       }
 
       .seat-card.is-viewer {
@@ -286,7 +302,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           transparent 54.5%
         ),
         linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
-        rgba(9, 16, 29, 0.74);
+        rgba(18, 18, 20, 0.82);
       }
 
       .seat-head {
@@ -357,6 +373,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 4;
         overflow: hidden;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
       }
 
       .mini-card {
@@ -374,6 +391,93 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         letter-spacing: 0.03em;
       }
 
+      .chat-shell {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 12px;
+        height: 420px;
+      }
+
+      .chat-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 9px;
+      }
+
+      .chat-row--mine {
+        justify-content: flex-end;
+      }
+
+      .chat-row--system {
+        justify-content: center;
+      }
+
+      .chat-avatar {
+        flex: 0 0 34px;
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #dfe8f7;
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .chat-stack {
+        display: grid;
+        gap: 4px;
+        max-width: min(78%, 480px);
+      }
+
+      .chat-stack--mine {
+        justify-items: end;
+      }
+
+      .chat-author {
+        font-size: 0.75rem;
+        line-height: 1.2;
+        padding: 0 2px;
+      }
+
+      .chat-bubble {
+        padding: 11px 13px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 19px;
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text);
+        line-height: 1.45;
+        word-break: break-word;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
+      }
+
+      .chat-bubble--other {
+        border-bottom-left-radius: 8px;
+      }
+
+      .chat-bubble--mine {
+        border-color: rgba(255, 201, 141, 0.18);
+        border-bottom-right-radius: 8px;
+        background: linear-gradient(145deg, #ffbe73, #ff9850);
+        color: #17120b;
+      }
+
+      .chat-bubble--system {
+        max-width: min(92%, 520px);
+        padding: 8px 12px;
+        border-color: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        color: #d4deed;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        text-align: center;
+        box-shadow: none;
+      }
+
       .chat-meta,
       .muted {
         color: var(--muted);
@@ -381,10 +485,21 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         line-height: 1.4;
       }
 
+      .chat-meta {
+        padding: 0 2px;
+        font-size: 0.72rem;
+        line-height: 1.2;
+      }
+
       .action-form,
       .chat-form {
         display: grid;
         gap: 10px;
+      }
+
+      .chat-form {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
       }
 
       .button-row {
@@ -407,7 +522,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         padding: 12px 14px;
         border: 1px solid rgba(255, 255, 255, 0.14);
         border-radius: 15px;
-        background: rgba(6, 12, 21, 0.62);
+        background: rgba(17, 17, 19, 0.88);
         color: var(--text);
       }
 
@@ -432,6 +547,20 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       button[disabled] {
         opacity: 0.6;
         cursor: not-allowed;
+      }
+
+      .chat-form input {
+        min-height: 52px;
+        border-radius: 18px;
+        background: rgba(17, 17, 19, 0.94);
+      }
+
+      .chat-form button {
+        width: auto;
+        min-width: 84px;
+        min-height: 52px;
+        padding-inline: 18px;
+        border-radius: 18px;
       }
 
       .notice {
@@ -473,7 +602,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         padding: 8px;
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 22px;
-        background: rgba(6, 14, 24, 0.95);
+        background: rgba(11, 11, 12, 0.95);
         backdrop-filter: blur(18px);
         box-shadow: var(--dock-shadow);
       }
@@ -553,8 +682,8 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         }
 
         .line-list,
-        .chat-list {
-          max-height: 340px;
+        .chat-shell {
+          height: 500px;
         }
 
         .action-form,
@@ -617,7 +746,11 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       let currentState = initialState;
       let sinceVersion = initialState.version;
       let pollTimer = null;
+      let deadlineTimer = null;
+      let syncedServerNowMs = initialState.serverNow;
+      let syncedClientPerfMs = performance.now();
       let activeSection = "actions";
+      const chatDrafts = Object.create(null);
 
       function escapeHtml(value) {
         return String(value)
@@ -643,8 +776,108 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         if (!timestamp) {
           return "마감 없음";
         }
-        const remaining = Math.max(0, timestamp - Date.now());
+        const remaining = Math.max(0, timestamp - estimateServerNow());
         return \`\${Math.ceil(remaining / 1000)}초 남음\`;
+      }
+
+      function estimateServerNow() {
+        return syncedServerNowMs + (performance.now() - syncedClientPerfMs);
+      }
+
+      function syncServerClock(serverNow) {
+        if (typeof serverNow === "number") {
+          syncedServerNowMs = serverNow;
+          syncedClientPerfMs = performance.now();
+        }
+      }
+
+      function updateDeadlineDisplays() {
+        const text = formatDeadline(currentState.room.deadlineAt);
+        document.querySelectorAll("[data-live-deadline]").forEach((node) => {
+          node.textContent = text;
+        });
+      }
+
+      function scrollChatListsToBottom() {
+        document.querySelectorAll(".chat-list").forEach((node) => {
+          if (!(node instanceof HTMLElement)) {
+            return;
+          }
+
+          node.scrollTop = node.scrollHeight;
+          const last = node.lastElementChild;
+          if (last instanceof HTMLElement) {
+            last.scrollIntoView({ block: "end", inline: "nearest" });
+          }
+        });
+      }
+
+      function queueChatAutoscroll() {
+        requestAnimationFrame(() => {
+          scrollChatListsToBottom();
+          setTimeout(scrollChatListsToBottom, 40);
+        });
+      }
+
+      function captureChatDraftState() {
+        let focused = null;
+        document.querySelectorAll(".chat-form").forEach((form) => {
+          if (!(form instanceof HTMLFormElement)) {
+            return;
+          }
+
+          const input = form.elements.namedItem("content");
+          if (!(input instanceof HTMLInputElement)) {
+            return;
+          }
+
+          const channel = form.dataset.channel;
+          if (!channel) {
+            return;
+          }
+
+          if (input.value) {
+            chatDrafts[channel] = input.value;
+          } else {
+            delete chatDrafts[channel];
+          }
+
+          if (document.activeElement === input) {
+            focused = {
+              channel,
+              start: input.selectionStart ?? input.value.length,
+              end: input.selectionEnd ?? input.value.length,
+            };
+          }
+        });
+        return focused;
+      }
+
+      function restoreChatDraftState(focused) {
+        document.querySelectorAll(".chat-form").forEach((form) => {
+          if (!(form instanceof HTMLFormElement)) {
+            return;
+          }
+
+          const input = form.elements.namedItem("content");
+          if (!(input instanceof HTMLInputElement)) {
+            return;
+          }
+
+          const channel = form.dataset.channel;
+          if (!channel) {
+            return;
+          }
+
+          input.value = typeof chatDrafts[channel] === "string" ? chatDrafts[channel] : "";
+
+          if (focused && focused.channel === channel) {
+            input.focus({ preventScroll: true });
+            const end = Math.min(focused.end, input.value.length);
+            const start = Math.min(focused.start, end);
+            input.setSelectionRange(start, end);
+          }
+        });
       }
 
       function teamClass(state) {
@@ -675,13 +908,33 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         }
       }
 
+      function nicknameClassForUser(state, userId) {
+        if (!userId) {
+          return "nick-color-7";
+        }
+
+        const occupiedSeats = state.room.seats.filter((seat) => !seat.empty);
+        const seatIndex = occupiedSeats.findIndex((seat) => seat.userId === userId);
+        if (seatIndex >= 0) {
+          return \`nick-color-\${(seatIndex % 8) + 1}\`;
+        }
+
+        let hash = 0;
+        for (const char of String(userId)) {
+          hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+        }
+        return \`nick-color-\${(hash % 8) + 1}\`;
+      }
+
       function renderHero(state) {
         const team = teamClass(state);
-        document.getElementById("hero-title").textContent = state.viewer.displayName;
+        const heroTitle = document.getElementById("hero-title");
+        heroTitle.textContent = state.viewer.displayName;
+        heroTitle.className = nicknameClassForUser(state, state.viewer.userId);
         document.getElementById("hero-subtitle").textContent = \`게임 ID \${state.room.gameId}\`;
         document.getElementById("hero-meta").innerHTML = [
           \`<div class="meta-chip role-chip role-chip--\${team}"><strong>\${escapeHtml(state.viewer.roleLabel)}</strong></div>\`,
-          \`<div class="meta-chip"><strong>\${escapeHtml(formatDeadline(state.room.deadlineAt))}</strong></div>\`,
+          \`<div class="meta-chip"><strong data-live-deadline>\${escapeHtml(formatDeadline(state.room.deadlineAt))}</strong></div>\`,
         ].join("");
       }
 
@@ -767,19 +1020,48 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         \`;
       }
 
-      function chatSection(chat, withHeading) {
+      function displayAuthorName(viewerId, message) {
+        return message.authorId === viewerId ? "나" : message.authorName;
+      }
+
+      function authorInitial(name) {
+        const trimmed = String(name || "").trim();
+        return trimmed ? trimmed.slice(0, 1) : "?";
+      }
+
+      function chatMessage(state, viewerId, message) {
+        if (message.kind === "system") {
+          return \`
+            <div class="chat-row chat-row--system">
+              <div class="chat-bubble chat-bubble--system">\${escapeHtml(message.content)}</div>
+            </div>
+          \`;
+        }
+
+        const mine = message.authorId === viewerId;
+        const rowClass = mine ? "chat-row chat-row--mine" : "chat-row";
+        const stackClass = mine ? "chat-stack chat-stack--mine" : "chat-stack";
+        const bubbleClass = mine ? "chat-bubble chat-bubble--mine" : "chat-bubble chat-bubble--other";
+        const nickClass = nicknameClassForUser(state, message.authorId);
+        const avatar = mine ? "" : \`<div class="chat-avatar \${nickClass}">\${escapeHtml(authorInitial(message.authorName))}</div>\`;
+
+        return \`
+          <div class="\${rowClass}">
+            \${avatar}
+            <div class="\${stackClass}">
+              <div class="chat-author \${nickClass}">\${escapeHtml(displayAuthorName(viewerId, message))}</div>
+              <div class="\${bubbleClass}">\${escapeHtml(message.content)}</div>
+              <div class="chat-meta">\${formatClock(message.createdAt)}</div>
+            </div>
+          </div>
+        \`;
+      }
+
+      function chatSection(state, viewerId, chat, withHeading) {
         const messages =
           chat.messages.length > 0
             ? chat.messages
-                .map(
-                  (message) => \`
-                    <div class="chat-message">
-                      <strong>\${escapeHtml(message.authorName)}</strong>
-                      <div>\${escapeHtml(message.content)}</div>
-                      <div class="chat-meta">\${formatClock(message.createdAt)}</div>
-                    </div>
-                  \`,
-                )
+                .map((message) => chatMessage(state, viewerId, message))
                 .join("")
             : '<div class="line-item muted">아직 메시지가 없습니다.</div>';
 
@@ -797,7 +1079,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
               <div class="panel-head">
                 <div>
                   <h3>\${escapeHtml(chat.title)}</h3>
-                  <p>권한은 서버에서 다시 검증합니다.</p>
                 </div>
               </div>
             \`
@@ -806,8 +1087,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         return \`
           <div class="\${withHeading ? "secret-chat" : ""}">
             \${heading}
-            <div class="chat-list">\${messages}</div>
-            <div class="footer">\${form}</div>
+            <div class="chat-shell">
+              <div class="chat-list" data-channel="\${escapeHtml(chat.channel)}">\${messages}</div>
+              <div class="footer">\${form}</div>
+            </div>
           </div>
         \`;
       }
@@ -816,7 +1099,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         return \`panel section-panel \${sectionId === activeSection ? "is-active" : ""}\`;
       }
 
-      function seatCard(seat) {
+      function seatCard(state, seat) {
         if (seat.empty) {
           return \`
             <div class="seat-card is-empty">
@@ -846,6 +1129,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         if (!seat.alive) {
           classes.push("is-dead");
         }
+        const nickClass = nicknameClassForUser(state, seat.userId);
 
         return \`
           <div class="\${classes.join(" ")}">
@@ -853,12 +1137,13 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
               <span class="seat-index">\${seat.seat}</span>
               <div class="seat-flags">\${flags.join("")}</div>
             </div>
-            <div class="seat-name">\${escapeHtml(seat.displayName)}</div>
+            <div class="seat-name \${nickClass}">\${escapeHtml(seat.displayName)}</div>
           </div>
         \`;
       }
 
       function render(state) {
+        const focusedChat = captureChatDraftState();
         ensureActiveSection(state);
         renderHero(state);
         renderMobileDock(state);
@@ -883,7 +1168,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
             : '<div class="line-item muted">개인 결과가 아직 없습니다.</div>';
         const secretChats =
           state.secretChats.length > 0
-            ? state.secretChats.map((chat) => chatSection(chat, true)).join("")
+            ? state.secretChats.map((chat) => chatSection(state, state.viewer.userId, chat, true)).join("")
             : '<div class="line-item muted">현재 접근 가능한 비밀 채팅이 없습니다.</div>';
 
         document.getElementById("app").innerHTML = \`
@@ -905,15 +1190,15 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
                 </div>
                 <div class="mini-grid">
                   <div class="mini-card">
-                    <strong>Deadline</strong>
-                    <div>\${escapeHtml(formatDeadline(state.room.deadlineAt))}</div>
+                    <strong>남은 시간</strong>
+                    <div data-live-deadline>\${escapeHtml(formatDeadline(state.room.deadlineAt))}</div>
                   </div>
                   <div class="mini-card">
                     <strong>행동</strong>
                     <div>\${actionableControlCount(state)}개 가능</div>
                   </div>
                 </div>
-                <div class="seat-grid">\${state.room.seats.map(seatCard).join("")}</div>
+                <div class="seat-grid">\${state.room.seats.map((seat) => seatCard(state, seat)).join("")}</div>
                 \${state.room.currentTrialTargetName ? \`<div class="line-item"><strong>현재 대상</strong><div>\${escapeHtml(state.room.currentTrialTargetName)}</div></div>\` : ""}
               </div>
             </section>
@@ -924,7 +1209,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
                   <h2>공개 채팅</h2>
                 </div>
               </div>
-              <div class="panel-body">\${chatSection(state.publicChat, false)}</div>
+              <div class="panel-body">\${chatSection(state, state.viewer.userId, state.publicChat, false)}</div>
             </section>
 
             <section class="\${sectionClass("actions")} span-5" data-section="actions">
@@ -942,7 +1227,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
               <div class="panel-head">
                 <div>
                   <h2>비밀 채팅</h2>
-                  <p>모바일에서는 접근 가능한 채팅만 순서대로 보입니다.</p>
                 </div>
               </div>
               <div class="panel-body secret-stack">\${secretChats}</div>
@@ -952,7 +1236,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
               <div class="panel-head">
                 <div>
                   <h2>시스템 로그 / 결과</h2>
-                  <p>공개 결과와 개인 결과를 분리해 공간을 절약했습니다.</p>
                 </div>
               </div>
               <div class="panel-body">
@@ -964,6 +1247,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
             </section>
           </div>
         \`;
+        restoreChatDraftState(focusedChat);
+        updateDeadlineDisplays();
+        scheduleDeadlineTicker();
+        queueChatAutoscroll();
       }
 
       async function refreshState() {
@@ -979,12 +1266,14 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           }
 
           const payload = await response.json();
+          syncServerClock(payload.serverNow);
           if (payload.changed && payload.state) {
             currentState = payload.state;
             sinceVersion = payload.version;
             render(currentState);
           } else {
             sinceVersion = payload.version;
+            scheduleDeadlineTicker();
           }
         } catch (error) {
           console.error(error);
@@ -1029,14 +1318,41 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
           if (form.classList.contains("chat-form")) {
             const data = new FormData(form);
+            const channel = form.dataset.channel;
             await postJson(\`/api/game/\${encodeURIComponent(currentState.room.gameId)}/chats/\${encodeURIComponent(form.dataset.channel)}\`, {
               content: data.get("content"),
             });
             form.reset();
+            if (channel) {
+              delete chatDrafts[channel];
+            }
             await refreshState();
           }
         } catch (error) {
           alert(error.message || "요청 실패");
+        }
+      });
+
+      document.addEventListener("input", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement) || target.name !== "content") {
+          return;
+        }
+
+        const form = target.form;
+        if (!(form instanceof HTMLFormElement) || !form.classList.contains("chat-form")) {
+          return;
+        }
+
+        const channel = form.dataset.channel;
+        if (!channel) {
+          return;
+        }
+
+        if (target.value) {
+          chatDrafts[channel] = target.value;
+        } else {
+          delete chatDrafts[channel];
         }
       });
 
@@ -1050,6 +1366,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         if (navSection) {
           activeSection = navSection;
           render(currentState);
+          queueChatAutoscroll();
           return;
         }
 
@@ -1078,11 +1395,35 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         pollTimer = setInterval(refreshState, intervalMs);
       }
 
+      function scheduleDeadlineTicker() {
+        if (deadlineTimer) {
+          clearTimeout(deadlineTimer);
+          deadlineTimer = null;
+        }
+
+        updateDeadlineDisplays();
+
+        const deadlineAt = currentState.room.deadlineAt;
+        if (!deadlineAt) {
+          return;
+        }
+
+        const remaining = Math.max(0, deadlineAt - estimateServerNow());
+        if (remaining <= 0) {
+          return;
+        }
+
+        const untilNextSecond = remaining % 1000 || 1000;
+        deadlineTimer = setTimeout(scheduleDeadlineTicker, Math.max(40, untilNextSecond + 12));
+      }
+
       document.addEventListener("visibilitychange", schedulePolling);
 
       activeSection = pickDefaultSection(currentState);
+      syncServerClock(initialState.serverNow);
       render(currentState);
       schedulePolling();
+      scheduleDeadlineTicker();
     </script>
   </body>
 </html>`;

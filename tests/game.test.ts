@@ -297,6 +297,21 @@ test("성직자는 이번 밤 사망자만 후속 대상으로 받고 그 대상
   assert.ok(revived.summary.publicLines.some((line) => line.includes("성직자의 힘으로 부활했습니다.")));
 });
 
+test("공개 사망 결과는 웹 공개 채팅에도 시스템 메시지로 누적된다", async () => {
+  const game = createTestGame("balance");
+  seedPlayers(game, [
+    { userId: "mafia", displayName: "마피아", role: "mafia" },
+    { userId: "target", displayName: "시민", role: "citizen" },
+  ]);
+  game.phase = "night";
+  setNightAction(game, "mafia", "mafiaKill", "target", 1);
+
+  await resolveNight(game);
+
+  const publicSystemLines = game.webChats.public.filter((message) => message.kind === "system").map((message) => message.content);
+  assert.ok(publicSystemLines.some((line) => line.includes("시민 님이 밤사이 사망했습니다.")));
+});
+
 test("밸런스 규칙에서는 영매가 먼저 성불한 밤 사망자를 성직자가 되살릴 수 없다", async () => {
   const game = createTestGame("balance");
   seedPlayers(game, [

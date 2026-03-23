@@ -1,0 +1,31 @@
+
+> discord_mafia@2.0.0 dev:practice1
+> powershell -NoProfile -Command "$env:PRACTICE_SCENARIO='practice1'; $env:DISCORD_BOT_TOKEN='practice-token'; $env:DISCORD_APPLICATION_ID='practice-app'; $env:PUBLIC_BASE_URL='http://localhost:3014'; $env:WEB_SESSION_SECRET='practice-web-session-secret'; $env:JOIN_TICKET_SECRET='practice-join-ticket-secret'; tsx src/dev/web-practice.ts"
+
+[dotenv@17.3.1] injecting env (8) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+
+[web-practice] practice server is ready
+[web-practice] ruleset=balance port=3023
+[web-practice] selected=practice1
+[web-practice] open the URLs below. each scenario keeps a separate per-game session cookie.
+
+[web-practice] practice1: 마피아 시점
+[web-practice] 밤 마피아 채팅과 낮 공개 채팅, 둘째 날까지의 흐름을 함께 본다.
+[web-practice] open: http://localhost:3023/auth/exchange?ticket=eyJnYW1lSWQiOiJtbjM2ejJzaC0zMjgzIiwiZGlzY29yZFVzZXJJZCI6InByYWN0aWNlLXZpZXdlciIsImlzc3VlZEF0IjoxNzc0MjcwNzE2NjQzLCJleHBpcmVzQXQiOjE3NzQyNzEwMTY2NDMsImp0aSI6IjhmZTMzNGU2LTk0YzYtNGUwMi1hMzhlLWE4ZmMwZjRlYzI3ZSIsInB1cnBvc2UiOiJqb2luIn0.eCrWlyntc2BZcYIKi9cw1-ftnI0USnVczpcp2U4S1nc
+
+[web-practice] scenarios auto-play for about two in-game days.
+[web-practice] you can still send chat and submit actions while the scripted timeline runs.
+[web-practice] press Ctrl+C to stop
+
+[web-practice] practice1 -> 밤 1차 마피아 대화
+[web-practice] practice1 -> 밤 2차 마피아 대화
+[web-practice] practice1 -> 1번째 낮 토론 시작
+[web-practice] practice1 -> 낮 공개 대화 추가
+[web-practice] practice1 -> 낮 투표 시작
+[web-practice] practice1 -> 최후의 반론
+[web-practice] practice1 -> 찬반 투표
+[web-practice] practice1 -> 2번째 밤 시작
+[web-practice] practice1 -> 2번째 밤 마피아 대화
+[web-practice] practice1 -> 2번째 낮 토론 시작
+[web-practice] practice1 -> 2번째 낮 공개 대화
+[web-practice] practice1 -> practice1 종료

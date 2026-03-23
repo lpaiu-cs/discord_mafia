@@ -540,6 +540,7 @@ function appendChat(game: InternalGame, channel: WebChatChannel, authorId: strin
   game.webChats[channel].push({
     id: makeId(),
     channel,
+    kind: "player",
     authorId,
     authorName: author.displayName,
     content,

@@ -2,7 +2,7 @@
 
 ## 목적
 
-Discord는 로비/모집/참가/재입장 링크 발급만 담당하고, 실제 게임 진행은 웹 대시보드에서 처리한다.
+Discord는 로비/모집/참가/재입장 링크 발급과 공개 상태 미러링만 담당하고, 실제 게임 진행은 웹 대시보드에서 처리한다.
 
 `RULE.md` 는 계속 single source of truth 로 유지한다.
 
@@ -16,6 +16,7 @@ Discord는 로비/모집/참가/재입장 링크 발급만 담당하고, 실제 
 - 개인 입장 URL ephemeral 발급
 - `/mafia dashboard`
 - `/mafia rejoin`
+- 공개 상태/결과 미러링
 - 게임 종료 상태 재안내
 
 ### Web responsibility
@@ -52,6 +53,8 @@ Discord는 로비/모집/참가/재입장 링크 발급만 담당하고, 실제 
 ## Session model
 
 - 세션은 서버 메모리 저장소 기준으로 관리한다.
+- 현재 아키텍처 전제는 `single-process MVP` 이다.
+- join ticket 사용 기록과 session store 는 프로세스 메모리에 있다.
 - 쿠키에는 signed session id 만 들어간다.
 - 쿠키 이름은 `gameId` 별로 분리한다.
   - 예: `mafia_session_<gameId>`
@@ -78,6 +81,7 @@ Discord는 로비/모집/참가/재입장 링크 발급만 담당하고, 실제 
   - 개인 역할 카드
   - 개인 행동 가능 목록
   - 역할별 비밀 채팅 접근 권한
+- Discord 공개 채널은 room state 의 요약/미러링만 담당한다.
 
 ## Reconnect / rejoin flow
 

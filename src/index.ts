@@ -24,7 +24,11 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-const manager = new GameManager();
+const manager = new GameManager((game) => {
+  void publicBaseUrlProvider.stop(game.id).catch((error) => {
+    console.error(`failed to stop public base url provider for ended game ${game.id}`, error);
+  });
+});
 const joinTicketService = new JoinTicketService(config.joinTicketSecret);
 const sessionStore = new SessionStore(config.webSessionSecret);
 const publicBaseUrlProvider =
@@ -138,7 +142,6 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
 
       await interaction.reply({ content: "게임을 시작합니다. Discord는 로비만 담당하고 실제 진행은 웹 대시보드에서 이뤄집니다.", ephemeral: true });
       await game.start(client);
-      maybeDeleteEndedGame(game);
       return;
     }
     case "dashboard":
@@ -190,7 +193,6 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
 
       await interaction.reply({ content: "현재 단계를 넘깁니다.", ephemeral: true });
       await game.forceAdvance(client);
-      maybeDeleteEndedGame(game);
       return;
     }
     case "end": {
@@ -233,9 +235,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   }
 
   if (kind === "trial") {
-    await game.handleTrialVote(client, interaction, value as "yes" | "no");
-    maybeDeleteEndedGame(game);
-    return;
+      await game.handleTrialVote(client, interaction, value as "yes" | "no");
+      return;
   }
 
   if (kind === "time") {
@@ -269,10 +270,6 @@ async function handleSelect(interaction: StringSelectMenuInteraction): Promise<v
   }
 
   throw new Error("지원하지 않는 선택 메뉴입니다.");
-}
-
-function maybeDeleteEndedGame(game: { phase: string; guildId: string }): void {
-  return;
 }
 
 async function replyError(interaction: Interaction, message: string): Promise<void> {

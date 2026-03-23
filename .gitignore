@@ -4,4 +4,8 @@ __pycache__/
 node_modules
 dist
 
+tests/
+package-lock.json
+*.ts
+
 .env

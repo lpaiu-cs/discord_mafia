@@ -1,13 +1,13 @@
 {
   "name": "discord_mafia",
-  "version": "1.0.0",
-  "description": "Discord bot for Mafia42 season 4 style games",
+  "version": "2.0.0",
+  "description": "Discord lobby + web dashboard bot for Mafia42 season 4 style games",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "test": "DISCORD_BOT_TOKEN=test-token DISCORD_APPLICATION_ID=test-app tsx --test tests/**/*.test.ts"
+    "test": "powershell -NoProfile -Command \"$env:DISCORD_BOT_TOKEN='test-token'; $env:DISCORD_APPLICATION_ID='test-app'; $env:PUBLIC_BASE_URL='https://mafia.test'; $env:WEB_SESSION_SECRET='test-web-secret'; $env:JOIN_TICKET_SECRET='test-join-secret'; tsx --test tests/all.test.ts\""
   },
   "keywords": [
     "discord",

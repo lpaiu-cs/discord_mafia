@@ -10,6 +10,43 @@
 
 2인으로 실제 게임을 끝까지 진행할 수는 없지만, 링크/세션/재입장/채팅/권한은 빠르게 확인할 수 있다.
 
+## 1인 개발자 프리뷰
+
+실제 Discord 없이 웹 UI 를 바로 보려면:
+
+```bash
+npm run dev:preview
+```
+
+기본 프리뷰:
+
+- role: `mafia`
+- phase: `night`
+- ruleset: `balance`
+- port: `3010`
+
+PowerShell 예시:
+
+```powershell
+$env:PREVIEW_PHASE='discussion'
+$env:PREVIEW_ROLE='reporter'
+$env:PREVIEW_RULESET='balance'
+npm run dev:preview
+```
+
+이 경로로 확인할 수 있는 것:
+
+- `/auth/exchange` -> 세션 쿠키 -> `/game/:id`
+- 공개/비밀 채팅 패널 렌더링
+- 단계별 행동 패널 렌더링
+- polling 동작
+
+이 경로로 확인하기 어려운 것:
+
+- 실제 Discord interaction 발급
+- 실제 다인원 상호작용 결과
+- 실제 quick tunnel 네트워크 경로
+
 ### 준비
 
 1. `.env` 설정

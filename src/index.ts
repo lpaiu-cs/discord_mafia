@@ -187,6 +187,11 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  if (kind === "reporter") {
+    await game.handleReporterPublish(client, interaction);
+    return;
+  }
+
   throw new Error("지원하지 않는 버튼입니다.");
 }
 

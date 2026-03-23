@@ -1,4 +1,4 @@
-import { PublicRole, Role, RoleAssignmentResult, RoleTemplate, Ruleset, Team, getTeam } from "./model";
+import { PublicRole, Role, RoleAssignmentResult, RoleTemplate, Ruleset, Team, getTeam, isMafiaTeam } from "./model";
 
 const SUPPORT_POOL: PublicRole[] = ["spy", "beastman", "madam"];
 const SPECIAL_POOL: PublicRole[] = [
@@ -174,11 +174,11 @@ export function getRoleSummary(role: Role, ruleset: Ruleset): string {
 }
 
 export function normalizeStolenRole(stolenRole: Role, ruleset: Ruleset): Role {
-  if (stolenRole === "mafia" || stolenRole === "spy" || stolenRole === "beastman" || stolenRole === "madam") {
+  if (isMafiaTeam(stolenRole)) {
     return ruleset === "balance" ? "evil" : "citizen";
   }
 
-  return stolenRole;
+  return "citizen";
 }
 
 export function getRoleLabel(role: Role): string {

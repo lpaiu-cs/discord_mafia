@@ -1,0 +1,99 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { Client, Guild, GuildMember } from "discord.js";
+import { GameManager } from "../src/game/game";
+import { JoinTicketService } from "../src/web/join-ticket";
+import { SessionStore } from "../src/web/session-store";
+import { DashboardServer } from "../src/web/server";
+
+function createMember(id: string, displayName: string): GuildMember {
+  return {
+    id,
+    displayName,
+    user: { bot: false },
+  } as GuildMember;
+}
+
+test("URL exchange 는 세션 쿠키를 발급하고 polling/chat API 와 연동된다", async (t) => {
+  const manager = new GameManager();
+  const guild = { id: "guild-1" } as Guild;
+  const host = createMember("user-1", "host");
+  const game = manager.create(guild, "channel-1", host, "balance");
+  game.phase = "discussion";
+  game.phaseContext = {
+    token: 1,
+    startedAt: Date.now(),
+    deadlineAt: Date.now() + 60_000,
+  };
+
+  const joinTicketService = new JoinTicketService("join-secret");
+  const sessionStore = new SessionStore("session-secret");
+  const server = new DashboardServer({
+    client: {} as Client,
+    gameManager: manager,
+    joinTicketService,
+    sessionStore,
+    port: 0,
+  });
+  const port = await server.listen();
+  t.after(async () => {
+    await server.close();
+  });
+
+  const ticket = joinTicketService.issue({
+    gameId: game.id,
+    discordUserId: "user-1",
+    ttlMs: 180_000,
+  });
+
+  const exchangeResponse = await fetch(`http://127.0.0.1:${port}/auth/exchange?ticket=${encodeURIComponent(ticket)}`, {
+    redirect: "manual",
+  });
+  const setCookie = exchangeResponse.headers.get("set-cookie");
+
+  assert.equal(exchangeResponse.status, 302);
+  assert.match(setCookie ?? "", /HttpOnly/);
+  assert.match(setCookie ?? "", /Secure/);
+  assert.match(setCookie ?? "", /SameSite=Lax/);
+
+  const cookieHeader = (setCookie ?? "").split(";")[0];
+  const stateResponse = await fetch(`http://127.0.0.1:${port}/api/game/${encodeURIComponent(game.id)}/state`, {
+    headers: {
+      Cookie: cookieHeader,
+    },
+  });
+  const initialState = await stateResponse.json();
+
+  assert.equal(initialState.changed, true);
+  const sinceVersion = initialState.version;
+
+  const signedCookieValue = cookieHeader.split("=")[1];
+  const sessionId = sessionStore.parseCookieValue(decodeURIComponent(signedCookieValue));
+  const session = sessionStore.get(sessionId!);
+  assert.ok(session);
+
+  const chatResponse = await fetch(`http://127.0.0.1:${port}/api/game/${encodeURIComponent(game.id)}/chats/public`, {
+    method: "POST",
+    headers: {
+      Cookie: cookieHeader,
+      "content-type": "application/json",
+      "x-csrf-token": session!.csrfToken,
+    },
+    body: JSON.stringify({ content: "안녕하세요" }),
+  });
+
+  assert.equal(chatResponse.status, 200);
+
+  const updatedStateResponse = await fetch(
+    `http://127.0.0.1:${port}/api/game/${encodeURIComponent(game.id)}/state?sinceVersion=${encodeURIComponent(String(sinceVersion))}`,
+    {
+      headers: {
+        Cookie: cookieHeader,
+      },
+    },
+  );
+  const updatedState = await updatedStateResponse.json();
+
+  assert.equal(updatedState.changed, true);
+  assert.equal(updatedState.state.publicChat.messages.at(-1).content, "안녕하세요");
+});

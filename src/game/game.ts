@@ -71,6 +71,24 @@ interface AftermathChoice {
   timeout: NodeJS.Timeout;
 }
 
+export type GameDeliveryMode = "discord-dm" | "web";
+export type WebChatChannel = "public" | "mafia" | "lover" | "graveyard";
+
+export interface WebChatMessage {
+  id: string;
+  channel: WebChatChannel;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: number;
+}
+
+export interface WebPrivateLogEntry {
+  id: string;
+  line: string;
+  createdAt: number;
+}
+
 export class GameManager {
   private readonly games = new Map<string, MafiaGame>();
 
@@ -84,13 +102,11 @@ export class GameManager {
 
   create(guild: Guild, channelId: string, host: GuildMember, ruleset: Ruleset): MafiaGame {
     const existing = this.games.get(guild.id);
-    if (existing) {
+    if (existing && existing.phase !== "ended") {
       throw new Error("이 서버에는 이미 진행 중인 마피아 게임이 있습니다.");
     }
 
-    const game = new MafiaGame(guild, channelId, host, ruleset, (guildId) => {
-      this.games.delete(guildId);
-    });
+    const game = new MafiaGame(guild, channelId, host, ruleset, () => undefined, config.gameDeliveryMode);
     this.games.set(guild.id, game);
     return game;
   }
@@ -117,6 +133,13 @@ export class MafiaGame {
   readonly trialVotes = new Map<string, "yes" | "no">();
   readonly pendingTrialBurns = new Map<string, PendingTrialBurn>();
   readonly deadOrder: string[] = [];
+  readonly webChats: Record<WebChatChannel, WebChatMessage[]> = {
+    public: [],
+    mafia: [],
+    lover: [],
+    graveyard: [],
+  };
+  readonly privateLogs = new Map<string, WebPrivateLogEntry[]>();
 
   phase: Phase = "lobby";
   phaseContext: PhaseContext | null = null;
@@ -135,6 +158,7 @@ export class MafiaGame {
   phaseTimer: NodeJS.Timeout | null = null;
   loverPair: [string, string] | null = null;
   pendingAftermathChoice: AftermathChoice | null = null;
+  stateVersion = 1;
 
   constructor(
     guild: Guild,
@@ -142,6 +166,7 @@ export class MafiaGame {
     host: GuildMember,
     ruleset: Ruleset,
     private readonly onEnded: (guildId: string) => void,
+    readonly deliveryMode: GameDeliveryMode = "discord-dm",
   ) {
     this.id = `${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)
       .toString()
@@ -178,6 +203,125 @@ export class MafiaGame {
     return player;
   }
 
+  hasParticipant(userId: string): boolean {
+    return this.players.has(userId);
+  }
+
+  bumpStateVersion(): number {
+    this.stateVersion += 1;
+    return this.stateVersion;
+  }
+
+  getPrivateLog(userId: string): WebPrivateLogEntry[] {
+    return [...(this.privateLogs.get(userId) ?? [])];
+  }
+
+  getNightPromptForPlayer(userId: string): PromptDefinition | null {
+    return this.getNightPrompt(userId);
+  }
+
+  appendPrivateLog(userId: string, line: string): void {
+    const entries = this.privateLogs.get(userId) ?? [];
+    entries.push({
+      id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)
+        .toString()
+        .padStart(4, "0")}`,
+      line,
+      createdAt: Date.now(),
+    });
+    this.privateLogs.set(userId, entries);
+    this.bumpStateVersion();
+  }
+
+  canReadChat(userId: string, channel: WebChatChannel): boolean {
+    const player = this.getPlayer(userId);
+    if (!player) {
+      return false;
+    }
+
+    switch (channel) {
+      case "public":
+        return true;
+      case "mafia":
+        return isMafiaTeam(player.role) && player.alive;
+      case "lover":
+        return player.role === "lover" && Boolean(player.loverId) && player.alive;
+      case "graveyard":
+        if (this.phase !== "night") {
+          return false;
+        }
+        return (!player.alive || player.role === "medium");
+      default:
+        return false;
+    }
+  }
+
+  canWriteChat(userId: string, channel: WebChatChannel): boolean {
+    const player = this.getPlayer(userId);
+    if (!player || !this.canReadChat(userId, channel)) {
+      return false;
+    }
+
+    switch (channel) {
+      case "public":
+        if (!player.alive) {
+          return false;
+        }
+        if (this.phase === "discussion") {
+          return true;
+        }
+        if (this.phase === "defense") {
+          return this.currentTrialTargetId === userId;
+        }
+        return false;
+      case "mafia":
+        return this.phase === "night";
+      case "lover":
+        return this.phase === "night";
+      case "graveyard":
+        if (player.role === "medium" && player.alive) {
+          return this.phase === "night";
+        }
+        return this.phase === "night" && !player.alive && !player.ascended;
+      default:
+        return false;
+    }
+  }
+
+  sendChat(userId: string, channel: WebChatChannel, content: string): WebChatMessage {
+    const player = this.getPlayer(userId);
+    if (!player) {
+      throw new Error("게임 참가자를 찾을 수 없습니다.");
+    }
+
+    const normalized = content.trim();
+    if (!normalized) {
+      throw new Error("메시지를 입력해 주세요.");
+    }
+
+    if (normalized.length > 500) {
+      throw new Error("메시지는 500자 이하로 입력해 주세요.");
+    }
+
+    if (!this.canWriteChat(userId, channel)) {
+      throw new Error("현재 이 채팅에 쓸 수 없습니다.");
+    }
+
+    const message: WebChatMessage = {
+      id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 9999)
+        .toString()
+        .padStart(4, "0")}`,
+      channel,
+      authorId: userId,
+      authorName: player.displayName,
+      content: normalized,
+      createdAt: Date.now(),
+    };
+    this.webChats[channel].push(message);
+    this.bumpStateVersion();
+    return message;
+  }
+
   addPlayer(member: GuildMember): void {
     if (this.phase !== "lobby") {
       throw new Error("게임이 이미 시작되었습니다.");
@@ -197,6 +341,7 @@ export class MafiaGame {
 
     this.players.set(member.id, createPlayer(member));
     this.lastPublicLines = [`${member.displayName} 님이 로비에 참가했습니다.`];
+    this.bumpStateVersion();
   }
 
   removePlayer(userId: string): void {
@@ -215,9 +360,11 @@ export class MafiaGame {
 
     this.players.delete(userId);
     this.lastPublicLines = [`${player.displayName} 님이 로비에서 나갔습니다.`];
+    this.bumpStateVersion();
   }
 
   async sendOrUpdateLobby(client: Client): Promise<void> {
+    this.bumpStateVersion();
     const channel = await this.getPublicChannel(client);
     const payload = {
       embeds: [this.buildLobbyEmbed()],
@@ -308,6 +455,7 @@ export class MafiaGame {
     this.lastPublicLines = [reason];
     await this.sendOrUpdateStatus(client);
     await this.lockOrDeleteSecretChannels(client);
+    this.bumpStateVersion();
     this.onEnded(this.guildId);
   }
 
@@ -547,6 +695,7 @@ export class MafiaGame {
   }
 
   async sendOrUpdateStatus(client: Client): Promise<void> {
+    this.bumpStateVersion();
     const channel = await this.getPublicChannel(client);
     const payload = { embeds: [this.buildStatusEmbed()] };
 
@@ -588,7 +737,10 @@ export class MafiaGame {
     await this.sendNightPrompts(client);
     await this.sendPhaseMessage(client, {
       title: `${this.nightNumber}번째 밤`,
-      description: "개인 DM으로 행동을 제출해 주세요. 공개 채널에서는 결과만 안내합니다.",
+      description:
+        this.deliveryMode === "web"
+          ? "웹 대시보드에서 개인 행동과 비밀 채팅을 진행해 주세요."
+          : "개인 DM으로 행동을 제출해 주세요. 공개 채널에서는 결과만 안내합니다.",
     });
     await this.sendOrUpdateStatus(client);
     this.restartTimer(client, NIGHT_SECONDS * 1_000, () => this.finishNight(client));
@@ -635,7 +787,7 @@ export class MafiaGame {
     await this.sendPhaseMessage(client, {
       title: `${this.dayNumber}번째 낮`,
       description: "토론 시간입니다. 살아 있는 플레이어는 한 번씩 시간을 늘리거나 줄일 수 있습니다.",
-      components: [this.buildTimeControls()],
+      components: this.deliveryMode === "web" ? [] : [this.buildTimeControls()],
       extraLines: morningLines,
     });
     await this.sendReporterPublishPrompt(client);
@@ -734,7 +886,7 @@ export class MafiaGame {
     await this.sendPhaseMessage(client, {
       title: "찬반 투표",
       description: `${this.getPlayerOrThrow(this.currentTrialTargetId).displayName} 님을 처형할지 결정합니다.`,
-      components: [this.buildTrialControls()],
+      components: this.deliveryMode === "web" ? [] : [this.buildTrialControls()],
       extraLines: this.lastPublicLines,
     });
     await this.sendOrUpdateStatus(client);
@@ -1139,13 +1291,18 @@ export class MafiaGame {
   private async sendVotePrompt(client: Client): Promise<void> {
     await this.sendPhaseMessage(client, {
       title: "투표 시간",
-      description: "드롭다운으로 한 명을 선택해 주세요.",
-      components: [this.buildVoteControls()],
+      description:
+        this.deliveryMode === "web" ? "웹 대시보드에서 한 명을 선택해 주세요." : "드롭다운으로 한 명을 선택해 주세요.",
+      components: this.deliveryMode === "web" ? [] : [this.buildVoteControls()],
       extraLines: this.bulliedToday.size > 0 ? [`협박 대상: ${this.formatNames([...this.bulliedToday])}`] : undefined,
     });
   }
 
   private async sendMadamPrompt(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     const madam = this.alivePlayers.find((player) => player.role === "madam");
     if (!madam) {
       return;
@@ -1162,6 +1319,10 @@ export class MafiaGame {
   }
 
   private async sendReporterPublishPrompt(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     if (!this.pendingArticle || this.dayNumber < this.pendingArticle.publishFromDay) {
       return;
     }
@@ -1177,6 +1338,10 @@ export class MafiaGame {
   }
 
   private async sendTerrorBurnPrompt(client: Client, targetId: string): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     const target = this.getPlayerOrThrow(targetId);
     const choices = this.alivePlayers.filter((player) => player.userId !== targetId).map((player) => player.userId);
     if (choices.length === 0) {
@@ -1189,6 +1354,10 @@ export class MafiaGame {
   }
 
   private async sendNightPrompts(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     for (const player of this.alivePlayers) {
       const prompt = this.getNightPrompt(player.userId);
       if (!prompt) {
@@ -1325,6 +1494,7 @@ export class MafiaGame {
         if (this.pendingAftermathChoice?.token === token && this.pendingAftermathChoice.actorId === actorId) {
           clearTimeout(this.pendingAftermathChoice.timeout);
           this.pendingAftermathChoice = null;
+          this.bumpStateVersion();
         }
         outerResolve(targetId);
       };
@@ -1341,6 +1511,11 @@ export class MafiaGame {
         timeout,
       };
       this.pendingAftermathChoice = choice;
+      this.bumpStateVersion();
+
+      if (this.deliveryMode === "web") {
+        return;
+      }
 
       void (async () => {
         try {
@@ -1355,6 +1530,10 @@ export class MafiaGame {
   }
 
   private async prepareSecretChannels(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     const guild = await client.guilds.fetch(this.guildId);
     const me = guild.members.me ?? (await guild.members.fetchMe());
     const hiddenBase = [
@@ -1410,6 +1589,10 @@ export class MafiaGame {
   }
 
   private async lockOrDeleteSecretChannels(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     const guild = await client.guilds.fetch(this.guildId);
     const ids = [this.secretChannels.mafiaId, this.secretChannels.loverId, this.secretChannels.graveyardId].filter(
       (value): value is string => Boolean(value),
@@ -1443,6 +1626,10 @@ export class MafiaGame {
   }
 
   private async syncSecretChannels(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     const mafiaChannel = await this.fetchSecretTextChannel(client, this.secretChannels.mafiaId);
     const loverChannel = await this.fetchSecretTextChannel(client, this.secretChannels.loverId);
     const graveyardChannel = await this.fetchSecretTextChannel(client, this.secretChannels.graveyardId);
@@ -1506,6 +1693,10 @@ export class MafiaGame {
   }
 
   private async sendRoleCards(client: Client): Promise<void> {
+    if (this.deliveryMode === "web") {
+      return;
+    }
+
     for (const player of this.players.values()) {
       await this.safeSendDm(client, player.userId, {
         embeds: [this.buildRoleEmbed(player)],
@@ -1566,7 +1757,10 @@ export class MafiaGame {
         },
         {
           name: "안내",
-          value: "4명 이상이 되면 방장이 시작할 수 있습니다. 개인 DM이 열려 있어야 게임을 진행할 수 있습니다.",
+          value:
+            this.deliveryMode === "web"
+              ? "4명 이상이 되면 방장이 시작할 수 있습니다. 참가/재입장은 Discord에서 링크를 발급받아 웹 대시보드로 진행합니다."
+              : "4명 이상이 되면 방장이 시작할 수 있습니다. 개인 DM이 열려 있어야 게임을 진행할 수 있습니다.",
         },
       ])
       .setFooter({ text: `게임 ID: ${this.id}` });
@@ -2014,6 +2208,7 @@ export class MafiaGame {
     clearTimeout(this.pendingAftermathChoice.timeout);
     this.pendingAftermathChoice.resolve(null);
     this.pendingAftermathChoice = null;
+    this.bumpStateVersion();
   }
 
   private restartTimer(client: Client, durationMs: number, callback: () => Promise<void>): void {
@@ -2027,6 +2222,11 @@ export class MafiaGame {
   }
 
   private async safeSendDm(client: Client, userId: string, payload: string | { embeds: EmbedBuilder[] }): Promise<void> {
+    if (this.deliveryMode === "web") {
+      this.appendPrivateLog(userId, stringifyPrivatePayload(payload));
+      return;
+    }
+
     const user = await client.users.fetch(userId);
     await user.send(payload as never);
   }
@@ -2119,4 +2319,28 @@ function hasActiveNightAction(role: Role): boolean {
     "terrorist",
     "priest",
   ].includes(role);
+}
+
+function stringifyPrivatePayload(payload: string | { embeds: EmbedBuilder[] }): string {
+  if (typeof payload === "string") {
+    return payload;
+  }
+
+  const lines: string[] = [];
+  for (const embed of payload.embeds) {
+    const json = embed.toJSON();
+    if (json.title) {
+      lines.push(json.title);
+    }
+    if (json.description) {
+      lines.push(json.description);
+    }
+    if (json.fields) {
+      for (const field of json.fields) {
+        lines.push(`${field.name}: ${field.value}`);
+      }
+    }
+  }
+
+  return lines.join("\n").trim() || "개인 알림이 도착했습니다.";
 }

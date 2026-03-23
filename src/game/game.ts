@@ -51,12 +51,24 @@ const NIGHT_SECONDS = 25;
 const DISCUSSION_SECONDS_PER_PLAYER = 15;
 const VOTE_SECONDS = 15;
 const DEFENSE_SECONDS = 15;
+const AFTERMATH_SELECTION_SECONDS = 15;
 
 interface PromptDefinition {
   action: NightActionType;
   title: string;
   description: string;
   targets: string[];
+}
+
+interface AftermathChoice {
+  token: number;
+  actorId: string;
+  action: "mediumAscend" | "priestRevive";
+  title: string;
+  description: string;
+  targetIds: string[];
+  resolve: (targetId: string | null) => void;
+  timeout: NodeJS.Timeout;
 }
 
 export class GameManager {
@@ -122,6 +134,7 @@ export class MafiaGame {
   phaseMessageId: string | null = null;
   phaseTimer: NodeJS.Timeout | null = null;
   loverPair: [string, string] | null = null;
+  pendingAftermathChoice: AftermathChoice | null = null;
 
   constructor(
     guild: Guild,
@@ -449,6 +462,25 @@ export class MafiaGame {
     const actor = this.assertAliveParticipant(actorId);
     const [targetId] = interaction.values;
 
+    if (kind === "aftermath") {
+      const choice = this.pendingAftermathChoice;
+      if (!choice) {
+        throw new Error("이미 끝난 후속 선택입니다.");
+      }
+
+      if (Number.parseInt(tokenRaw, 10) !== choice.token || choice.actorId !== actorId || choice.action !== action) {
+        throw new Error("이미 만료된 선택지입니다.");
+      }
+
+      if (!choice.targetIds.includes(targetId)) {
+        throw new Error("선택할 수 없는 대상입니다.");
+      }
+
+      choice.resolve(targetId);
+      await interaction.update(this.buildAftermathPayload(choice, targetId));
+      return;
+    }
+
     if (kind === "night") {
       if (action === "spyInspectBonus") {
         const primaryAction = this.nightActions.get(actorId);
@@ -532,6 +564,7 @@ export class MafiaGame {
 
   private async beginNight(client: Client): Promise<void> {
     this.clearTimer();
+    this.clearPendingAftermathChoice();
     this.phase = "night";
     this.nightNumber += 1;
     this.currentTrialTargetId = null;
@@ -798,8 +831,6 @@ export class MafiaGame {
     const mafiaResult = this.resolveMafiaKill(mafiaVotes);
     const protectedId = this.findActorTarget("doctorProtect");
     const beastAction = this.findActionByRole("beastman");
-    const priestAction = this.findActionByRole("priest");
-    const mediumAction = this.findActionByRole("medium");
     const thugAction = this.findActionByRole("thug");
     const reporterAction = this.findActionByRole("reporter");
     const spyAction = this.findActionByRole("spy");
@@ -934,43 +965,52 @@ export class MafiaGame {
       }
     }
 
-    if (mediumAction) {
-      const target = this.getPlayerOrThrow(mediumAction.targetId);
-      if (!target.alive) {
+    await this.syncSecretChannels(client);
+
+    const medium = this.alivePlayers.find((player) => player.role === "medium");
+    if (medium && !this.isBlockedTonight(medium.userId)) {
+      const mediumTargetId = await this.requestAftermathTarget(
+        client,
+        medium.userId,
+        "mediumAscend",
+        "영매 성불",
+        "죽은 플레이어 한 명을 골라 직업을 확인하고 성불시킵니다.",
+        this.deadPlayers.filter((target) => !target.ascended).map((target) => target.userId),
+      );
+
+      if (mediumTargetId) {
+        const target = this.getPlayerOrThrow(mediumTargetId);
         target.ascended = true;
         summary.privateLines.push({
-          userId: mediumAction.actorId,
+          userId: medium.userId,
           line: `${target.displayName} 님의 직업은 ${getRoleLabel(target.role)}였습니다.`,
-        });
-      } else {
-        summary.privateLines.push({
-          userId: mediumAction.actorId,
-          line: "선택한 대상이 밤 종료 시점에 사망 상태가 아니라 성불에 실패했습니다.",
         });
       }
     }
 
-    if (priestAction) {
-      const actor = this.getPlayerOrThrow(priestAction.actorId);
-      const target = this.getPlayer(priestAction.targetId);
-      if (target) {
-        if (!nightDeathIds.has(target.userId)) {
+    const priest = this.alivePlayers.find((player) => player.role === "priest" && !player.priestUsed);
+    if (priest && !this.isBlockedTonight(priest.userId)) {
+      const priestTargetId = await this.requestAftermathTarget(
+        client,
+        priest.userId,
+        "priestRevive",
+        "성직자 부활",
+        "이번 밤에 죽은 플레이어 한 명을 골라 부활시킵니다.",
+        [...nightDeathIds],
+      );
+
+      if (priestTargetId) {
+        priest.priestUsed = true;
+        const target = this.getPlayerOrThrow(priestTargetId);
+        const blockedByMedium = this.ruleset === "balance" && target.ascended;
+        if (blockedByMedium) {
           summary.privateLines.push({
-            userId: actor.userId,
-            line: "선택한 대상이 이번 밤에 사망하지 않아 부활이 발동하지 않았습니다.",
+            userId: priest.userId,
+            line: "영매가 먼저 성불시킨 대상이라 부활이 실패했습니다.",
           });
-        } else {
-          actor.priestUsed = true;
-          const blockedByMedium = this.ruleset === "balance" && target.ascended;
-          if (blockedByMedium) {
-            summary.privateLines.push({
-              userId: actor.userId,
-              line: "영매가 먼저 성불시킨 대상이라 부활이 실패했습니다.",
-            });
-          } else if (!target.alive) {
-            this.revivePlayer(target.userId);
-            summary.publicLines.push(`${target.displayName} 님이 성직자의 힘으로 부활했습니다.`);
-          }
+        } else if (!target.alive) {
+          this.revivePlayer(target.userId);
+          summary.publicLines.push(`${target.displayName} 님이 성직자의 힘으로 부활했습니다.`);
         }
       }
     }
@@ -1219,14 +1259,8 @@ export class MafiaGame {
           description: "살릴 플레이어를 선택하세요. 자기 자신도 선택할 수 있습니다.",
           targets: this.alivePlayers.map((target) => target.userId),
         };
-      case "medium": {
-        return {
-          action: "mediumAscend",
-          title: "영매 성불",
-          description: "밤이 끝났을 때 죽은 상태인 플레이어 한 명을 성불시켜 직업을 확인합니다.",
-          targets: [...this.players.values()].filter((target) => !target.ascended).map((target) => target.userId),
-        };
-      }
+      case "medium":
+        return null;
       case "thug":
         return {
           action: "thugThreaten",
@@ -1258,20 +1292,66 @@ export class MafiaGame {
           description: "오늘 밤 당신을 쏠 것 같은 대상을 선택하세요.",
           targets: this.alivePlayers.filter((target) => target.userId !== userId).map((target) => target.userId),
         };
-      case "priest": {
-        if (player.priestUsed) {
-          return null;
-        }
-        return {
-          action: "priestRevive",
-          title: "성직자 부활",
-          description: "이번 밤에 사망하면 되살릴 플레이어 한 명을 선택하세요.",
-          targets: this.alivePlayers.map((target) => target.userId),
-        };
-      }
+      case "priest":
+        return null;
       default:
         return null;
     }
+  }
+
+  private async requestAftermathTarget(
+    client: Client,
+    actorId: string,
+    action: "mediumAscend" | "priestRevive",
+    title: string,
+    description: string,
+    targetIds: string[],
+  ): Promise<string | null> {
+    if (targetIds.length === 0) {
+      return null;
+    }
+
+    this.clearPendingAftermathChoice();
+    const token = this.phaseContext?.token ?? 0;
+
+    return await new Promise<string | null>((outerResolve) => {
+      let settled = false;
+      const settle = (targetId: string | null) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        if (this.pendingAftermathChoice?.token === token && this.pendingAftermathChoice.actorId === actorId) {
+          clearTimeout(this.pendingAftermathChoice.timeout);
+          this.pendingAftermathChoice = null;
+        }
+        outerResolve(targetId);
+      };
+
+      const timeout = setTimeout(() => settle(null), AFTERMATH_SELECTION_SECONDS * 1_000);
+      const choice: AftermathChoice = {
+        token,
+        actorId,
+        action,
+        title,
+        description,
+        targetIds,
+        resolve: settle,
+        timeout,
+      };
+      this.pendingAftermathChoice = choice;
+
+      void (async () => {
+        try {
+          const user = await client.users.fetch(actorId);
+          const dm = await user.createDM();
+          await dm.send(this.buildAftermathPayload(choice));
+        } catch {
+          settle(null);
+        }
+      })();
+    });
   }
 
   private async prepareSecretChannels(client: Client): Promise<void> {
@@ -1630,6 +1710,38 @@ export class MafiaGame {
     };
   }
 
+  private buildAftermathPayload(choice: AftermathChoice, selectedTargetId?: string) {
+    return {
+      embeds: [
+        new EmbedBuilder()
+          .setColor(Colors.DarkBlue)
+          .setTitle(choice.title)
+          .setDescription(choice.description)
+          .addFields([
+            {
+              name: "현재 선택",
+              value: selectedTargetId ? this.getPlayerOrThrow(selectedTargetId).displayName : "아직 선택하지 않음",
+            },
+          ]),
+      ],
+      components: selectedTargetId
+        ? []
+        : [
+            new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(`aftermath:${this.id}:${choice.token}:${choice.actorId}:${choice.action}`)
+                .setPlaceholder("대상을 선택하세요")
+                .addOptions(
+                  choice.targetIds.map((targetId) => ({
+                    label: this.getPlayerOrThrow(targetId).displayName,
+                    value: targetId,
+                  })),
+                ),
+            ),
+          ],
+    };
+  }
+
   private buildMadamPayload(player: PlayerState, selectedTargetId?: string) {
     const targets = this.alivePlayers.filter((target) => target.userId !== player.userId);
     return {
@@ -1892,6 +2004,16 @@ export class MafiaGame {
       clearTimeout(this.phaseTimer);
       this.phaseTimer = null;
     }
+  }
+
+  private clearPendingAftermathChoice(): void {
+    if (!this.pendingAftermathChoice) {
+      return;
+    }
+
+    clearTimeout(this.pendingAftermathChoice.timeout);
+    this.pendingAftermathChoice.resolve(null);
+    this.pendingAftermathChoice = null;
   }
 
   private restartTimer(client: Client, durationMs: number, callback: () => Promise<void>): void {

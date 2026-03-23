@@ -207,7 +207,7 @@ async function handleSelect(interaction: StringSelectMenuInteraction): Promise<v
     return;
   }
 
-  if (kind === "night" || kind === "madam" || kind === "terror") {
+  if (kind === "night" || kind === "aftermath" || kind === "madam" || kind === "terror") {
     await game.handleNightSelect(client, interaction);
     return;
   }

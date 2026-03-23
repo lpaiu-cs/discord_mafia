@@ -151,7 +151,7 @@ export function getRoleSummary(role: Role, ruleset: Ruleset): string {
     case "politician":
       return "투표 표가 2표로 계산되며 투표 처형되지 않습니다.";
     case "medium":
-      return "죽은 사람의 채팅을 보고, 밤마다 생존자나 망자 한 명을 미리 골라 밤 종료 시 그 대상이 죽어 있으면 성불시키고 직업을 확인합니다.";
+      return "죽은 사람의 채팅을 보고, 밤마다 죽은 사람 한 명의 직업을 알아내 성불시킵니다.";
     case "lover":
       return "연인과 밤에 대화할 수 있습니다. 한 명이 마피아에게 지목되면 다른 연인이 대신 죽습니다.";
     case "thug":
@@ -165,7 +165,7 @@ export function getRoleSummary(role: Role, ruleset: Ruleset): string {
     case "terrorist":
       return "밤에 표시한 상대에게 실제로 마피아에게 살해당하면 함께 죽습니다. 투표 처형 시 적을 지목해 산화할 수 있습니다.";
     case "priest":
-      return "한 번만 생존자 한 명을 미리 지정합니다. 그 플레이어가 이번 밤에 죽으면 부활시킵니다.";
+      return "한 번만 밤에 죽은 플레이어 한 명을 부활시킵니다.";
     case "citizen":
       return "특수 능력이 없는 시민입니다.";
     case "evil":

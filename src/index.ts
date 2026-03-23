@@ -5,6 +5,9 @@ import {
   Events,
   GatewayIntentBits,
   Interaction,
+  InteractionEditReplyOptions,
+  InteractionReplyOptions,
+  MessageFlags,
   Partials,
   StringSelectMenuInteraction,
 } from "discord.js";
@@ -106,7 +109,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
 
       const ruleset = (interaction.options.getString("ruleset") ?? config.ruleset) as Ruleset;
       game = createGame(manager, interaction, ruleset);
-      await interaction.reply({ content: "로비를 만들었습니다.", ephemeral: true });
+      await interaction.reply({ content: "로비를 만들었습니다.", flags: MessageFlags.Ephemeral });
       await game.sendOrUpdateLobby(client);
       return;
     }
@@ -115,6 +118,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("현재 채널에 로비가 없습니다.");
       }
 
+      await deferEphemeral(interaction);
       const member = await interaction.guild!.members.fetch(interaction.user.id);
       game.addPlayer(member);
       await game.sendOrUpdateLobby(client);
@@ -126,9 +130,10 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("현재 채널에 로비가 없습니다.");
       }
 
+      await deferEphemeral(interaction);
       game.removePlayer(interaction.user.id);
       await game.sendOrUpdateLobby(client);
-      await interaction.reply({ content: "로비에서 나갔습니다.", ephemeral: true });
+      await sendEphemeralReply(interaction, { content: "로비에서 나갔습니다." });
       return;
     }
     case "start": {
@@ -140,7 +145,10 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("게임 시작은 방장만 할 수 있습니다.");
       }
 
-      await interaction.reply({ content: "게임을 시작합니다. Discord는 로비만 담당하고 실제 진행은 웹 대시보드에서 이뤄집니다.", ephemeral: true });
+      await interaction.reply({
+        content: "게임을 시작합니다. Discord는 로비만 담당하고 실제 진행은 웹 대시보드에서 이뤄집니다.",
+        flags: MessageFlags.Ephemeral,
+      });
       await game.start(client);
       return;
     }
@@ -162,12 +170,13 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("현재 진행 중인 게임이 없습니다.");
       }
 
+      await deferEphemeral(interaction);
       if (game.phase === "lobby") {
         await game.sendOrUpdateLobby(client);
       } else {
         await game.sendOrUpdateStatus(client);
       }
-      await interaction.reply({ content: "현재 상태를 다시 표시했습니다.", ephemeral: true });
+      await sendEphemeralReply(interaction, { content: "현재 상태를 다시 표시했습니다." });
       return;
     }
     case "reveal": {
@@ -179,7 +188,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("역할 공개는 방장만 볼 수 있습니다.");
       }
 
-      await interaction.reply({ content: `\`\`\`\n${game.describeAssignments()}\n\`\`\``, ephemeral: true });
+      await interaction.reply({ content: `\`\`\`\n${game.describeAssignments()}\n\`\`\``, flags: MessageFlags.Ephemeral });
       return;
     }
     case "advance": {
@@ -191,7 +200,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("강제 진행은 방장만 할 수 있습니다.");
       }
 
-      await interaction.reply({ content: "현재 단계를 넘깁니다.", ephemeral: true });
+      await interaction.reply({ content: "현재 단계를 넘깁니다.", flags: MessageFlags.Ephemeral });
       await game.forceAdvance(client);
       return;
     }
@@ -204,7 +213,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new Error("게임 종료는 방장만 할 수 있습니다.");
       }
 
-      await interaction.reply({ content: "게임을 종료합니다.", ephemeral: true });
+      await interaction.reply({ content: "게임을 종료합니다.", flags: MessageFlags.Ephemeral });
       await game.end(client, "방장이 게임을 종료했습니다.");
       return;
     }
@@ -277,16 +286,21 @@ async function replyError(interaction: Interaction, message: string): Promise<vo
     return;
   }
 
-  const payload = interaction.inGuild()
-    ? { content: `오류: ${message}`, ephemeral: true }
-    : { content: `오류: ${message}` };
+  try {
+    if (interaction.inGuild()) {
+      await sendEphemeralReply(interaction, { content: `오류: ${message}` });
+      return;
+    }
 
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(payload);
-    return;
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: `오류: ${message}` });
+      return;
+    }
+
+    await interaction.reply({ content: `오류: ${message}` });
+  } catch (replyError) {
+    console.error("failed to send interaction error reply", replyError);
   }
-
-  await interaction.reply(payload);
 }
 
 void client.login(config.token);
@@ -295,15 +309,10 @@ async function replyWithDashboardLink(
   interaction: ChatInputCommandInteraction | ButtonInteraction,
   game: MafiaGame,
 ): Promise<void> {
+  await deferEphemeral(interaction);
   const joinUrl = await dashboardAccess.issueJoinUrl(game.id, interaction.user.id);
   const payload = buildDashboardReply(game.id, joinUrl, config.joinTicketTtlSeconds);
-
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(payload);
-    return;
-  }
-
-  await interaction.reply(payload);
+  await sendEphemeralReply(interaction, payload);
 }
 
 async function handleLobbyButton(
@@ -321,6 +330,7 @@ async function handleLobbyButton(
     throw new Error("서버 안에서만 사용할 수 있습니다.");
   }
 
+  await deferEphemeral(interaction);
   const member = await guild.members.fetch(interaction.user.id);
 
   if (action === "join") {
@@ -333,7 +343,7 @@ async function handleLobbyButton(
   if (action === "leave") {
     game.removePlayer(interaction.user.id);
     await game.sendOrUpdateLobby(client);
-    await interaction.reply({ content: "로비에서 나갔습니다.", ephemeral: true });
+    await sendEphemeralReply(interaction, { content: "로비에서 나갔습니다." });
     return;
   }
 
@@ -341,6 +351,47 @@ async function handleLobbyButton(
     throw new Error("게임 시작은 방장만 할 수 있습니다.");
   }
 
-  await interaction.reply({ content: "게임을 시작합니다. 이제부터는 웹 대시보드에서 진행하세요.", ephemeral: true });
+  await sendEphemeralReply(interaction, { content: "게임을 시작합니다. 이제부터는 웹 대시보드에서 진행하세요." });
   await game.start(client);
+}
+
+async function deferEphemeral(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
+  if (interaction.deferred || interaction.replied) {
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+}
+
+async function sendEphemeralReply(
+  interaction: ChatInputCommandInteraction | ButtonInteraction | Interaction,
+  payload: InteractionReplyOptions,
+): Promise<void> {
+  if (!interaction.isRepliable()) {
+    return;
+  }
+
+  if (interaction.deferred) {
+    await interaction.editReply(stripEphemeralFlags(payload));
+    return;
+  }
+
+  if (interaction.replied) {
+    await interaction.followUp(withEphemeralFlag(payload));
+    return;
+  }
+
+  await interaction.reply(withEphemeralFlag(payload));
+}
+
+function withEphemeralFlag(payload: InteractionReplyOptions): InteractionReplyOptions {
+  return {
+    ...payload,
+    flags: MessageFlags.Ephemeral,
+  };
+}
+
+function stripEphemeralFlags(payload: InteractionReplyOptions): InteractionEditReplyOptions {
+  const { flags: _flags, ...rest } = payload;
+  return rest;
 }

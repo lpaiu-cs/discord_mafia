@@ -10,6 +10,7 @@ import {
   EmbedBuilder,
   Guild,
   GuildMember,
+  MessageFlags,
   Message,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
@@ -533,14 +534,14 @@ export class MafiaGame {
     if (action === "join") {
       this.addPlayer(member);
       await this.sendOrUpdateLobby(client);
-      await interaction.reply({ content: "로비에 참가했습니다.", ephemeral: true });
+      await interaction.reply({ content: "로비에 참가했습니다.", flags: MessageFlags.Ephemeral });
       return;
     }
 
     if (action === "leave") {
       this.removePlayer(interaction.user.id);
       await this.sendOrUpdateLobby(client);
-      await interaction.reply({ content: "로비에서 나갔습니다.", ephemeral: true });
+      await interaction.reply({ content: "로비에서 나갔습니다.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -548,14 +549,14 @@ export class MafiaGame {
       throw new Error("게임 시작은 방장만 할 수 있습니다.");
     }
 
-    await interaction.reply({ content: "게임을 시작합니다. DM을 확인해 주세요.", ephemeral: true });
+    await interaction.reply({ content: "게임을 시작합니다. DM을 확인해 주세요.", flags: MessageFlags.Ephemeral });
     await this.start(client);
   }
 
   async handleVoteSelect(client: Client, interaction: StringSelectMenuInteraction): Promise<void> {
     const [targetId] = interaction.values;
     const content = await this.submitVote(client, interaction.user.id, targetId, this.readPhaseToken(interaction.customId));
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
   }
 
   async submitVote(client: Client, userId: string, targetId: string, token?: number): Promise<string> {
@@ -580,7 +581,7 @@ export class MafiaGame {
     const content = await this.submitTrialVote(client, interaction.user.id, vote, this.readPhaseToken(interaction.customId));
     await interaction.reply({
       content,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 
@@ -602,7 +603,7 @@ export class MafiaGame {
     const content = await this.adjustDiscussionTime(client, interaction.user.id, direction, this.readPhaseToken(interaction.customId));
     await interaction.reply({
       content,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 
@@ -634,7 +635,7 @@ export class MafiaGame {
     }
 
     const content = await this.publishReporterArticle(client, interaction.user.id, actorId, Number.parseInt(dayRaw, 10));
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
   }
 
   async publishReporterArticle(client: Client, userId: string, actorId = userId, day = this.dayNumber): Promise<string> {

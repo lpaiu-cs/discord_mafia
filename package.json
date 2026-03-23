@@ -1,6 +1,6 @@
 {
   "name": "discord_mafia",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Discord lobby + web dashboard bot for Mafia42 season 4 style games",
   "main": "dist/index.js",
   "scripts": {

@@ -65,7 +65,7 @@ export class DashboardServer {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
       const pathname = url.pathname;
 
-      const resourceMatch = pathname.match(/^\/resource\/([A-Za-z0-9_-]+\.png)$/u);
+      const resourceMatch = pathname.match(/^\/resource\/([A-Za-z0-9_-]+\.(?:png|svg))$/u);
       if (resourceMatch && method === "GET") {
         await this.handleResource(response, resourceMatch[1]);
         return;
@@ -119,7 +119,10 @@ export class DashboardServer {
     try {
       const data = await readFile(filePath);
       response.statusCode = 200;
-      response.setHeader("content-type", "image/png");
+      let contentType = "application/octet-stream";
+      if (filename.endsWith(".svg")) contentType = "image/svg+xml";
+      else if (filename.endsWith(".png")) contentType = "image/png";
+      response.setHeader("content-type", contentType);
       response.setHeader("cache-control", "public, max-age=86400, immutable");
       response.end(data);
     } catch {

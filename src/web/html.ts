@@ -1266,7 +1266,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       ];
 
       function roleIconUrl(key) {
-        return "/resource/" + key + "_icon.png";
+        return "/resource/" + key + "_icon.svg";
       }
       let currentState = initialState;
       let sinceVersion = initialState.version;

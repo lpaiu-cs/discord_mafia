@@ -1773,9 +1773,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         }
 
         const flags = [];
-        if (seat.isViewer) {
-          flags.push('<span class="seat-flag seat-flag--accent">나</span>');
-        }
         if (seat.bullied) {
           flags.push('<span class="seat-flag">협박</span>');
         }

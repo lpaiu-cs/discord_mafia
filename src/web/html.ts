@@ -258,9 +258,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       .seat-card {
         position: relative;
         display: flex;
-        align-items: flex-end;
+        flex-direction: column;
+        justify-content: flex-end;
         aspect-ratio: 1 / 1;
-        padding: 12px 6px 6px;
+        padding: 6px 6px 6px;
         overflow: visible;
         border: 1px solid rgba(255, 255, 255, 0.07);
         border-radius: 12px;
@@ -303,32 +304,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         ),
         linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
         rgba(18, 18, 20, 0.82);
-      }
-
-      .seat-head {
-        position: absolute;
-        inset: 0;
-        z-index: 3;
-      }
-
-      .seat-index {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        position: absolute;
-        left: 8px;
-        top: -11px;
-        min-width: 28px;
-        min-height: 28px;
-        padding: 0 9px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(38, 49, 71, 0.92);
-        color: #c7d4e7;
-        font-size: 0.7rem;
-        font-weight: 700;
-        line-height: 1;
-        z-index: 4;
       }
 
       .seat-flags {
@@ -857,19 +832,22 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         background: linear-gradient(90deg, var(--danger), #ff4040);
       }
 
-      /* Phase 2: Seat avatar */
+      /* Phase 2: Seat avatar – top-left badge style */
       .seat-avatar {
+        position: absolute;
+        top: 4px;
+        left: 4px;
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 28px;
-        height: 28px;
-        margin: 0 auto 4px;
+        width: 20px;
+        height: 20px;
         border-radius: 50%;
-        font-size: 0.72rem;
+        font-size: 0.6rem;
         font-weight: 800;
         text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
         border: 1px solid rgba(255, 255, 255, 0.12);
+        z-index: 5;
       }
 
       .seat-card.is-dead .seat-avatar {
@@ -919,6 +897,17 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         background: rgba(255, 255, 255, 0.07);
       }
 
+      .action-grid-cell.is-disabled {
+        opacity: 0.3;
+        pointer-events: none;
+        cursor: default;
+      }
+
+      .action-grid-cell.is-dead-cell {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+
       .action-grid-cell.is-selected {
         border-color: rgba(245, 180, 95, 0.5);
         background: rgba(245, 180, 95, 0.12);
@@ -935,6 +924,172 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         font-size: 0.78rem;
         font-weight: 800;
         border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      /* Memo feature styles */
+      .seat-memo {
+        position: absolute;
+        top: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 70%;
+        aspect-ratio: 1 / 1;
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 2;
+        pointer-events: none;
+      }
+
+      .seat-memo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        opacity: 0.88;
+        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+      }
+
+      .seat-memo--empty {
+        display: none;
+      }
+
+      .memo-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(6px);
+        animation: memo-fade-in 0.18s ease-out;
+      }
+
+      @keyframes memo-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes memo-slide-up {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+      }
+
+      .memo-sheet {
+        width: 100%;
+        max-width: 420px;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+        border-radius: 20px 20px 0 0;
+        border: 1px solid var(--border);
+        border-bottom: 0;
+        background: linear-gradient(180deg, rgba(22, 22, 26, 0.98), rgba(14, 14, 16, 0.99));
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+        animation: memo-slide-up 0.22s ease-out;
+      }
+
+      .memo-sheet-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      .memo-sheet-head h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .memo-close-btn {
+        width: 36px !important;
+        min-width: 36px !important;
+        min-height: 36px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: var(--text) !important;
+        font-size: 1.1rem !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+
+      .memo-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .memo-role-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        padding: 10px 4px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s, transform 0.1s;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .memo-role-cell:hover {
+        border-color: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .memo-role-cell:active {
+        transform: scale(0.95);
+      }
+
+      .memo-role-cell.is-selected {
+        border-color: rgba(245, 180, 95, 0.5);
+        background: rgba(245, 180, 95, 0.12);
+        box-shadow: 0 0 8px rgba(245, 180, 95, 0.15);
+      }
+
+      .memo-role-cell.is-mafia-role {
+        border-color: rgba(255, 115, 115, 0.15);
+      }
+
+      .memo-role-cell.is-mafia-role.is-selected {
+        border-color: rgba(255, 115, 115, 0.5);
+        background: rgba(255, 115, 115, 0.12);
+        box-shadow: 0 0 8px rgba(255, 115, 115, 0.15);
+      }
+
+      .memo-role-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .memo-role-name {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-align: center;
+        line-height: 1.15;
+        color: var(--muted);
+      }
+
+      .memo-role-cell.is-selected .memo-role-name {
+        color: var(--text);
+      }
+
+      .memo-clear-row {
+        margin-top: 10px;
+      }
+
+      .memo-clear-row button {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: var(--muted) !important;
+        font-weight: 600 !important;
+        min-height: 42px !important;
       }
 
       .action-grid-name {
@@ -1081,11 +1236,38 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       const dockSections = [
         { id: "state", label: "상태", icon: "👤" },
-        { id: "public", label: "공개", icon: "💬" },
         { id: "actions", label: "행동", icon: "⚡" },
+        { id: "public", label: "공개", icon: "💬" },
         { id: "secret", label: "비밀", icon: "🤫" },
         { id: "logs", label: "개인", icon: "🔒" },
       ];
+
+      /* ── Memo / deduction note state ── */
+      const seatMemos = Object.create(null);
+      let memoOverlayTarget = null;
+
+      const ROLE_ICONS = [
+        { key: "mafia", label: "마피아", team: "mafia" },
+        { key: "spy", label: "스파이", team: "mafia" },
+        { key: "beastman", label: "짐승인간", team: "mafia" },
+        { key: "hostess", label: "마담", team: "mafia" },
+        { key: "police", label: "경찰", team: "citizen" },
+        { key: "doctor", label: "의사", team: "citizen" },
+        { key: "soldier", label: "군인", team: "citizen" },
+        { key: "politician", label: "정치인", team: "citizen" },
+        { key: "medium", label: "영매", team: "citizen" },
+        { key: "lover", label: "연인", team: "citizen" },
+        { key: "gangster", label: "건달", team: "citizen" },
+        { key: "reporter", label: "기자", team: "citizen" },
+        { key: "detective", label: "탐정", team: "citizen" },
+        { key: "ghoul", label: "도굴꾼", team: "citizen" },
+        { key: "terrorist", label: "테러리스트", team: "citizen" },
+        { key: "priest", label: "성직자", team: "citizen" },
+      ];
+
+      function roleIconUrl(key) {
+        return "/resource/" + key + "_icon.png";
+      }
       let currentState = initialState;
       let sinceVersion = initialState.version;
       let pollTimer = null;
@@ -1416,13 +1598,19 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           \`;
         }
 
-        const gridCells = (control.options || []).map((option) => {
-          const initial = String(option.label || "").trim().slice(0, 1) || "?";
-          const nickClass = nicknameClassForUser(currentState, option.value);
-          const selected = control.currentValue === option.value ? " is-selected" : "";
-          return \`<div class="action-grid-cell\${selected}" data-grid-value="\${escapeHtml(option.value)}" data-action-type="\${escapeHtml(control.actionType)}" data-action="\${escapeHtml(control.action || "")}">
-            <div class="action-grid-avatar \${nickClass}">\${escapeHtml(initial)}</div>
-            <div class="action-grid-name">\${escapeHtml(option.label)}</div>
+        const selectableValues = new Set((control.options || []).map((o) => o.value));
+        const gridCells = currentState.room.seats.map((seat) => {
+          const seatNum = seat.seat;
+          const nickClass = seat.empty ? "" : nicknameClassForUser(currentState, seat.userId);
+          const isSelectable = !seat.empty && selectableValues.has(seat.userId);
+          const selected = !seat.empty && control.currentValue === seat.userId ? " is-selected" : "";
+          const disabledCls = (!isSelectable) ? " is-disabled" : "";
+          const label = seat.empty ? "빈 자리" : seat.displayName;
+          const deadCls = (!seat.empty && !seat.alive) ? " is-dead-cell" : "";
+
+          return \`<div class="action-grid-cell\${selected}\${disabledCls}\${deadCls}"\${isSelectable ? \` data-grid-value="\${escapeHtml(seat.userId)}" data-action-type="\${escapeHtml(control.actionType)}" data-action="\${escapeHtml(control.action || "")}"\` : ""}>
+            <div class="action-grid-avatar \${nickClass}">\${seatNum}</div>
+            <div class="action-grid-name">\${escapeHtml(label)}</div>
           </div>\`;
         }).join("");
         const current = control.currentLabel ? \`<div class="footer">현재 선택: \${escapeHtml(control.currentLabel)}</div>\` : "";
@@ -1444,9 +1632,9 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         return message.authorId === viewerId ? "나" : message.authorName;
       }
 
-      function authorInitial(name) {
-        const trimmed = String(name || "").trim();
-        return trimmed ? trimmed.slice(0, 1) : "?";
+      function authorInitial(state, authorId) {
+        const seat = state.room.seats.find((s) => s.userId === authorId);
+        return seat ? String(seat.seat) : "?";
       }
 
       function shouldContinueChat(previousMessage, message) {
@@ -1482,7 +1670,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           ? ""
           : continued
             ? '<div class="chat-avatar chat-avatar--ghost"></div>'
-            : \`<div class="chat-avatar \${nickClass}">\${escapeHtml(authorInitial(message.authorName))}</div>\`;
+            : \`<div class="chat-avatar \${nickClass}">\${escapeHtml(authorInitial(state, message.authorId))}</div>\`;
         const head = continued
           ? ""
           : \`
@@ -1566,14 +1754,19 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         \`;
       }
 
+      function seatMemoHtml(seatNum) {
+        const memoKey = seatMemos[seatNum];
+        if (memoKey) {
+          return \`<div class="seat-memo"><img src="\${roleIconUrl(memoKey)}" alt="memo" /></div>\`;
+        }
+        return '<div class="seat-memo seat-memo--empty">?</div>';
+      }
+
       function seatCard(state, seat) {
         if (seat.empty) {
           return \`
             <div class="seat-card is-empty">
-              <div class="seat-head">
-                <span class="seat-index">\${seat.seat}</span>
-              </div>
-              <div class="seat-avatar" style="background: rgba(255,255,255,0.06); color: var(--muted);">?</div>
+              <div class="seat-avatar" style="background: rgba(255,255,255,0.06); color: var(--muted);">\${seat.seat}</div>
               <div class="seat-name muted">빈 자리</div>
             </div>
           \`;
@@ -1598,20 +1791,56 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           classes.push("is-dead");
         }
         const nickClass = nicknameClassForUser(state, seat.userId);
-        const initial = String(seat.displayName || "").trim().slice(0, 1) || "?";
         const deadIcon = !seat.alive ? '<span class="seat-dead-icon">💀</span>' : '';
 
         return \`
-          <div class="\${classes.join(" ")}">
-            <div class="seat-head">
-              <span class="seat-index">\${seat.seat}</span>
-              <div class="seat-flags">\${flags.join("")}</div>
-            </div>
+          <div class="\${classes.join(" ")}" data-memo-seat="\${seat.seat}">
+            <div class="seat-avatar \${nickClass}">\${seat.seat}</div>
+            <div class="seat-flags" style="position:absolute;top:26px;left:4px;z-index:4;flex-direction:column;">\${flags.join("")}</div>
+            \${seatMemoHtml(seat.seat)}
             \${deadIcon}
-            <div class="seat-avatar \${nickClass}">\${escapeHtml(initial)}</div>
             <div class="seat-name \${nickClass}">\${escapeHtml(seat.displayName)}</div>
           </div>
         \`;
+      }
+
+      function renderMemoOverlay(seatNum) {
+        const currentMemo = seatMemos[seatNum] || null;
+        const seat = currentState.room.seats.find((s) => s.seat === seatNum);
+        const displayName = seat && !seat.empty ? seat.displayName : "#" + seatNum;
+        const cells = ROLE_ICONS.map((role) => {
+          const selected = currentMemo === role.key ? " is-selected" : "";
+          const teamCls = role.team === "mafia" ? " is-mafia-role" : "";
+          return \`<div class="memo-role-cell\${selected}\${teamCls}" data-memo-role="\${role.key}">
+            <img class="memo-role-icon" src="\${roleIconUrl(role.key)}" alt="\${escapeHtml(role.label)}" />
+            <div class="memo-role-name">\${escapeHtml(role.label)}</div>
+          </div>\`;
+        }).join("");
+
+        return \`<div class="memo-overlay" data-memo-overlay>
+          <div class="memo-sheet">
+            <div class="memo-sheet-head">
+              <h3>\${escapeHtml(displayName)} 추리 메모</h3>
+              <button type="button" class="memo-close-btn" data-memo-close>✕</button>
+            </div>
+            <div class="memo-grid">\${cells}</div>
+            <div class="memo-clear-row">
+              <button type="button" data-memo-clear>메모 지우기</button>
+            </div>
+          </div>
+        </div>\`;
+      }
+
+      function openMemoOverlay(seatNum) {
+        closeMemoOverlay();
+        memoOverlayTarget = seatNum;
+        document.body.insertAdjacentHTML("beforeend", renderMemoOverlay(seatNum));
+      }
+
+      function closeMemoOverlay() {
+        memoOverlayTarget = null;
+        const existing = document.querySelector("[data-memo-overlay]");
+        if (existing) existing.remove();
       }
 
       function render(state) {
@@ -1837,6 +2066,48 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         const target = event.target;
         if (!(target instanceof Element)) {
           return;
+        }
+
+        /* ── Memo overlay interactions ── */
+        if (target.closest("[data-memo-close]")) {
+          closeMemoOverlay();
+          return;
+        }
+
+        if (target.closest("[data-memo-clear]")) {
+          if (memoOverlayTarget != null) {
+            delete seatMemos[memoOverlayTarget];
+            closeMemoOverlay();
+            render(currentState);
+          }
+          return;
+        }
+
+        const memoRoleCell = target.closest("[data-memo-role]");
+        if (memoRoleCell instanceof HTMLElement) {
+          const roleKey = memoRoleCell.dataset.memoRole;
+          if (memoOverlayTarget != null && roleKey) {
+            seatMemos[memoOverlayTarget] = roleKey;
+            closeMemoOverlay();
+            render(currentState);
+          }
+          return;
+        }
+
+        const memoOverlayBg = target.closest("[data-memo-overlay]");
+        if (memoOverlayBg && !target.closest(".memo-sheet")) {
+          closeMemoOverlay();
+          return;
+        }
+
+        /* ── Seat card memo tap (status tab) ── */
+        const seatCardEl = target.closest("[data-memo-seat]");
+        if (seatCardEl instanceof HTMLElement && seatCardEl.closest('[data-section="state"]')) {
+          const seatNum = Number(seatCardEl.dataset.memoSeat);
+          if (!Number.isNaN(seatNum)) {
+            openMemoOverlay(seatNum);
+            return;
+          }
         }
 
         const gridCell = target.closest(".action-grid-cell");

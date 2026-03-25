@@ -45,6 +45,44 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           linear-gradient(145deg, #060606 0%, #101011 42%, #171719 100%);
         color: var(--text);
         font-family: "Segoe UI Variable", "Noto Sans KR", "Malgun Gothic", sans-serif;
+        transition: background 0.8s ease;
+      }
+
+      /* Phase 2-A: Phase-specific ambient backgrounds */
+      body[data-phase="night"] {
+        background:
+          radial-gradient(circle at top left, rgba(60, 80, 180, 0.15), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(100, 60, 160, 0.1), transparent 28%),
+          linear-gradient(145deg, #040408 0%, #0a0a14 42%, #10101c 100%);
+      }
+
+      body[data-phase="discussion"] {
+        background:
+          radial-gradient(circle at top left, rgba(245, 200, 100, 0.14), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(200, 160, 60, 0.08), transparent 26%),
+          linear-gradient(145deg, #0a0906 0%, #121008 42%, #181610 100%);
+      }
+
+      body[data-phase="vote"] {
+        background:
+          radial-gradient(circle at top left, rgba(255, 160, 80, 0.14), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(255, 120, 60, 0.1), transparent 26%),
+          linear-gradient(145deg, #0a0806 0%, #12100a 42%, #181410 100%);
+      }
+
+      body[data-phase="defense"],
+      body[data-phase="trial"] {
+        background:
+          radial-gradient(circle at top left, rgba(255, 80, 80, 0.14), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(200, 40, 40, 0.1), transparent 26%),
+          linear-gradient(145deg, #0a0606 0%, #120a0a 42%, #181010 100%);
+      }
+
+      body[data-phase="ended"] {
+        background:
+          radial-gradient(circle at top left, rgba(150, 150, 150, 0.1), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(100, 100, 100, 0.06), transparent 26%),
+          linear-gradient(145deg, #080808 0%, #0e0e0e 42%, #141414 100%);
       }
 
       .shell {
@@ -165,6 +203,12 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
       .section-panel.is-active {
         display: block;
+        animation: section-fade-in 0.22s ease-out;
+      }
+
+      @keyframes section-fade-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
       }
 
       .panel-head {
@@ -268,6 +312,12 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         background:
           linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
           rgba(18, 18, 20, 0.82);
+        transition: transform 0.1s, box-shadow 0.15s;
+        cursor: pointer;
+      }
+
+      .seat-card:active {
+        transform: scale(0.95);
       }
 
       .seat-card.is-viewer {
@@ -530,6 +580,12 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         cursor: pointer;
         font-weight: 800;
         touch-action: manipulation;
+        transition: transform 0.1s, opacity 0.1s;
+      }
+
+      button:active:not([disabled]) {
+        transform: scale(0.96);
+        opacity: 0.85;
       }
 
       button.secondary {
@@ -614,6 +670,11 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        transition: transform 0.1s, background 0.2s, color 0.2s;
+      }
+
+      .dock-button:active {
+        transform: scale(0.92);
       }
 
       .dock-icon {
@@ -643,6 +704,12 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         line-height: 1.2;
         pointer-events: none;
         box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        animation: badge-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes badge-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.15); }
       }
 
       .dock-button.is-active {
@@ -887,9 +954,13 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         border-radius: 12px;
         background: rgba(255, 255, 255, 0.04);
         cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
+        transition: border-color 0.15s, background 0.15s, transform 0.1s;
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
+      }
+
+      .action-grid-cell:active:not(.is-disabled) {
+        transform: scale(0.95);
       }
 
       .action-grid-cell:hover {
@@ -1133,6 +1204,114 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       .secret-chat--lover { border-color: rgba(255, 148, 209, 0.2); }
       .secret-chat--graveyard { border-color: rgba(156, 168, 184, 0.2); }
 
+      /* ── Phase 1: Toast notification ── */
+      .toast-container {
+        position: fixed;
+        top: calc(12px + env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        pointer-events: none;
+        width: min(92%, 420px);
+      }
+
+      .toast-item {
+        padding: 10px 18px;
+        border-radius: 14px;
+        font-size: 0.84rem;
+        font-weight: 700;
+        line-height: 1.35;
+        text-align: center;
+        pointer-events: auto;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+        animation: toast-in 0.25s ease-out, toast-out 0.3s ease-in forwards;
+        animation-delay: 0s, 2.2s;
+      }
+
+      .toast-item--success {
+        background: rgba(60, 170, 110, 0.92);
+        color: #f0fff5;
+        border: 1px solid rgba(117, 209, 162, 0.3);
+      }
+
+      .toast-item--error {
+        background: rgba(200, 55, 55, 0.92);
+        color: #fff0f0;
+        border: 1px solid rgba(255, 113, 113, 0.3);
+      }
+
+      .toast-item--info {
+        background: rgba(40, 60, 120, 0.92);
+        color: #e0ecff;
+        border: 1px solid rgba(100, 150, 240, 0.3);
+      }
+
+      @keyframes toast-in {
+        from { opacity: 0; transform: translateY(-16px) scale(0.92); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      @keyframes toast-out {
+        from { opacity: 1; transform: translateY(0) scale(1); }
+        to { opacity: 0; transform: translateY(-12px) scale(0.95); }
+      }
+
+      /* ── Phase 1: Timer urgency pulse ── */
+      .timer-chip.is-urgent {
+        border-color: rgba(255, 80, 80, 0.3);
+        background: rgba(255, 60, 60, 0.14);
+        color: #ffaaaa;
+      }
+
+      .timer-chip.is-urgent strong {
+        color: #ff8888;
+      }
+
+      @keyframes timer-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.55; }
+      }
+
+      .timer-chip.is-critical {
+        animation: timer-pulse 0.8s ease-in-out infinite;
+        border-color: rgba(255, 50, 50, 0.45);
+        background: rgba(255, 40, 40, 0.2);
+        color: #ff9090;
+      }
+
+      .timer-chip.is-critical strong {
+        color: #ff6060;
+      }
+
+      /* ── Phase 1: Button loading state ── */
+      button.is-loading {
+        position: relative;
+        color: transparent !important;
+        pointer-events: none;
+      }
+
+      button.is-loading::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 18px;
+        height: 18px;
+        margin: -9px 0 0 -9px;
+        border: 2px solid rgba(0, 0, 0, 0.2);
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: btn-spin 0.6s linear infinite;
+      }
+
+      @keyframes btn-spin {
+        to { transform: rotate(360deg); }
+      }
+
       @media (min-width: 960px) {
         .shell {
           width: min(1280px, calc(100vw - 44px));
@@ -1230,6 +1409,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       <div id="app"></div>
       <div id="mobile-dock-root"></div>
     </div>
+    <div class="toast-container" id="toast-container"></div>
     <script id="initial-state" type="application/json">${stateJson}</script>
     <script>
       const initialState = JSON.parse(document.getElementById("initial-state").textContent);
@@ -1245,6 +1425,20 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       /* ── Memo / deduction note state ── */
       const seatMemos = Object.create(null);
       let memoOverlayTarget = null;
+
+      /* ── Toast notification ── */
+      function showToast(message, type = "info") {
+        const container = document.getElementById("toast-container");
+        if (!container) return;
+        const el = document.createElement("div");
+        el.className = "toast-item toast-item--" + type;
+        el.textContent = message;
+        container.appendChild(el);
+        el.addEventListener("animationend", (e) => {
+          if (e.animationName === "toast-out") el.remove();
+        });
+        setTimeout(() => { if (el.parentNode) el.remove(); }, 3000);
+      }
 
       const ROLE_ICONS = [
         { key: "mafia", label: "마피아", team: "mafia" },
@@ -1323,15 +1517,17 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           node.textContent = text;
         });
 
+        const deadlineAt = currentState.room.deadlineAt;
+        const remaining = deadlineAt ? Math.max(0, deadlineAt - estimateServerNow()) : 0;
+        const remainingSec = Math.ceil(remaining / 1000);
+
         document.querySelectorAll("[data-live-timer-fill]").forEach((node) => {
           if (!(node instanceof HTMLElement)) return;
-          const deadlineAt = currentState.room.deadlineAt;
           if (!deadlineAt) {
             node.style.width = "0%";
             return;
           }
           const totalMs = 300 * 1000;
-          const remaining = Math.max(0, deadlineAt - estimateServerNow());
           const pct = Math.min(100, (remaining / totalMs) * 100);
           node.style.width = pct + "%";
           if (pct < 20) {
@@ -1339,6 +1535,12 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           } else {
             node.classList.remove("is-urgent");
           }
+        });
+
+        /* Timer chip urgency */
+        document.querySelectorAll(".timer-chip").forEach((chip) => {
+          chip.classList.toggle("is-critical", remainingSec > 0 && remainingSec <= 10);
+          chip.classList.toggle("is-urgent", remainingSec > 10 && remainingSec <= 30);
         });
       }
 
@@ -1517,6 +1719,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       function renderHero(state) {
         const team = teamClass(state);
         const phase = state.room.phase;
+        document.body.dataset.phase = phase;
         const heroTitle = document.getElementById("hero-title");
         heroTitle.textContent = state.viewer.displayName;
         heroTitle.className = nicknameClassForUser(state, state.viewer.userId);
@@ -1885,8 +2088,13 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
               </div>
               <div class="panel-body viewer-stack">
                 <div class="viewer-card viewer-card--\${team}">
-                  <strong>내 정보</strong>
-                  <div>직업: \${escapeHtml(state.viewer.roleLabel)}</div>
+                  <div style="display:flex;gap:12px;align-items:flex-start;">
+                    <img src="\${roleIconUrl(state.viewer.roleLabel === '마피아' ? 'mafia' : state.viewer.roleLabel === '스파이' ? 'spy' : state.viewer.roleLabel === '짐승인간' ? 'beastman' : state.viewer.roleLabel === '마담' ? 'madam' : state.viewer.roleLabel === '경찰' ? 'police' : state.viewer.roleLabel === '의사' ? 'doctor' : state.viewer.roleLabel === '군인' ? 'soldier' : state.viewer.roleLabel === '정치인' ? 'politician' : state.viewer.roleLabel === '영매' ? 'medium' : state.viewer.roleLabel === '연인' ? 'lover' : state.viewer.roleLabel === '건달' ? 'thug' : state.viewer.roleLabel === '기자' ? 'reporter' : state.viewer.roleLabel === '탐정' ? 'detective' : state.viewer.roleLabel === '도굴꾼' ? 'graverobber' : state.viewer.roleLabel === '테러리스트' ? 'terrorist' : state.viewer.roleLabel === '성직자' ? 'priest' : 'citizen')}" alt="" style="width:42px;height:42px;border-radius:10px;object-fit:contain;flex-shrink:0;opacity:0.92;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" />
+                    <div>
+                      <strong>내 정보</strong>
+                      <div>직업: \${escapeHtml(state.viewer.roleLabel)}</div>
+                    </div>
+                  </div>
                   <div class="muted" style="margin-top: 8px;">\${escapeHtml(state.viewer.roleSummary)}</div>
                   \${state.viewer.loverName ? \`<div class="footer">연인: \${escapeHtml(state.viewer.loverName)}</div>\` : ""}
                   \${state.viewer.deadReason ? \`<div class="footer">사망 사유: \${escapeHtml(state.viewer.deadReason)}</div>\` : ""}
@@ -2007,6 +2215,9 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
         event.preventDefault();
 
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.classList.add("is-loading");
+
         try {
           if (form.classList.contains("action-form")) {
             const data = new FormData(form);
@@ -2015,6 +2226,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
               action: form.dataset.action || undefined,
               targetId: data.get("targetId"),
             });
+            showToast("행동을 제출했습니다", "success");
             await refreshState();
           }
 
@@ -2032,7 +2244,9 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
             await refreshState();
           }
         } catch (error) {
-          alert(error.message || "요청 실패");
+          showToast(error.message || "요청 실패", "error");
+        } finally {
+          if (submitBtn) submitBtn.classList.remove("is-loading");
         }
       });
 
@@ -2153,7 +2367,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           });
           await refreshState();
         } catch (error) {
-          alert(error.message || "요청 실패");
+          showToast(error.message || "요청 실패", "error");
         }
       });
 

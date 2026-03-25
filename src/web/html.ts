@@ -331,29 +331,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       }
 
       .seat-card.is-dead {
-        color: rgba(245, 247, 251, 0.78);
-        background: linear-gradient(
-          34deg,
-          transparent 45.2%,
-          rgba(255, 58, 58, 0.08) 47.2%,
-          rgba(255, 58, 58, 0.82) 49.1%,
-          rgba(255, 46, 46, 0.94) 50%,
-          rgba(255, 58, 58, 0.82) 50.9%,
-          rgba(255, 58, 58, 0.08) 52.8%,
-          transparent 54.8%
-        ),
-        linear-gradient(
-          -31deg,
-          transparent 45.5%,
-          rgba(255, 58, 58, 0.08) 47.4%,
-          rgba(255, 58, 58, 0.78) 49.2%,
-          rgba(255, 46, 46, 0.9) 50%,
-          rgba(255, 58, 58, 0.78) 50.8%,
-          rgba(255, 58, 58, 0.08) 52.6%,
-          transparent 54.5%
-        ),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
-        rgba(18, 18, 20, 0.82);
+        color: rgba(245, 247, 251, 0.5);
+        background: rgba(18, 18, 20, 0.7);
+        border-color: rgba(255, 255, 255, 0.04);
+        opacity: 0.55;
       }
 
       .seat-flags {
@@ -921,16 +902,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         opacity: 0.4;
       }
 
-      .seat-dead-icon {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -60%);
-        font-size: 1.1rem;
-        z-index: 5;
-        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-        pointer-events: none;
-      }
+
 
       .seat-card.is-viewer {
         border-color: rgba(245, 180, 95, 0.42);
@@ -1312,6 +1284,40 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         to { transform: rotate(360deg); }
       }
 
+      /* ── Phase 3: Spectator badge ── */
+      .spectator-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 12px;
+        background: rgba(120, 120, 140, 0.15);
+        border: 1px solid rgba(150, 150, 170, 0.15);
+        color: #9ca8b8;
+        font-size: 0.82rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .spectator-banner::before {
+        content: "👁️";
+        font-size: 1rem;
+      }
+
+      .viewer-card--dead {
+        position: relative;
+        opacity: 0.7;
+      }
+
+      .viewer-card--dead::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: rgba(0, 0, 0, 0.2);
+        pointer-events: none;
+      }
+
       @media (min-width: 960px) {
         .shell {
           width: min(1280px, calc(100vw - 44px));
@@ -1423,7 +1429,16 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       ];
 
       /* ── Memo / deduction note state ── */
-      const seatMemos = Object.create(null);
+      const memoStorageKey = "mafia_memos_" + initialState.room.gameId;
+      const seatMemos = (() => {
+        try {
+          const raw = localStorage.getItem(memoStorageKey);
+          return raw ? Object.assign(Object.create(null), JSON.parse(raw)) : Object.create(null);
+        } catch { return Object.create(null); }
+      })();
+      function saveMemos() {
+        try { localStorage.setItem(memoStorageKey, JSON.stringify(seatMemos)); } catch {}
+      }
       let memoOverlayTarget = null;
 
       /* ── Toast notification ── */
@@ -1991,14 +2006,12 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           classes.push("is-dead");
         }
         const nickClass = nicknameClassForUser(state, seat.userId);
-        const deadIcon = !seat.alive ? '<span class="seat-dead-icon">💀</span>' : '';
 
         return \`
           <div class="\${classes.join(" ")}" data-memo-seat="\${seat.seat}">
             <div class="seat-avatar \${nickClass}">\${seat.seat}</div>
             <div class="seat-flags" style="position:absolute;top:26px;left:4px;z-index:4;flex-direction:column;">\${flags.join("")}</div>
             \${seatMemoHtml(seat.seat)}
-            \${deadIcon}
             <div class="seat-name \${nickClass}">\${escapeHtml(seat.displayName)}</div>
           </div>
         \`;
@@ -2087,9 +2100,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
                 </div>
               </div>
               <div class="panel-body viewer-stack">
-                <div class="viewer-card viewer-card--\${team}">
+                \${!state.viewer.alive ? '<div class="spectator-banner">관전 중입니다</div>' : ""}
+                <div class="viewer-card viewer-card--\${team}\${!state.viewer.alive ? " viewer-card--dead" : ""}">
                   <div style="display:flex;gap:12px;align-items:flex-start;">
-                    <img src="\${roleIconUrl(state.viewer.roleLabel === '마피아' ? 'mafia' : state.viewer.roleLabel === '스파이' ? 'spy' : state.viewer.roleLabel === '짐승인간' ? 'beastman' : state.viewer.roleLabel === '마담' ? 'madam' : state.viewer.roleLabel === '경찰' ? 'police' : state.viewer.roleLabel === '의사' ? 'doctor' : state.viewer.roleLabel === '군인' ? 'soldier' : state.viewer.roleLabel === '정치인' ? 'politician' : state.viewer.roleLabel === '영매' ? 'medium' : state.viewer.roleLabel === '연인' ? 'lover' : state.viewer.roleLabel === '건달' ? 'thug' : state.viewer.roleLabel === '기자' ? 'reporter' : state.viewer.roleLabel === '탐정' ? 'detective' : state.viewer.roleLabel === '도굴꾼' ? 'graverobber' : state.viewer.roleLabel === '테러리스트' ? 'terrorist' : state.viewer.roleLabel === '성직자' ? 'priest' : 'citizen')}" alt="" style="width:42px;height:42px;border-radius:10px;object-fit:contain;flex-shrink:0;opacity:0.92;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" />
+                    \${(() => { const found = ROLE_ICONS.find(r => r.label === state.viewer.roleLabel); return found ? \`<img src="\${roleIconUrl(found.key)}" alt="" style="width:42px;height:42px;border-radius:10px;object-fit:contain;flex-shrink:0;opacity:0.92;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" />\` : ""; })()}
                     <div>
                       <strong>내 정보</strong>
                       <div>직업: \${escapeHtml(state.viewer.roleLabel)}</div>
@@ -2288,6 +2302,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         if (target.closest("[data-memo-clear]")) {
           if (memoOverlayTarget != null) {
             delete seatMemos[memoOverlayTarget];
+            saveMemos();
             closeMemoOverlay();
             render(currentState);
           }
@@ -2299,6 +2314,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           const roleKey = memoRoleCell.dataset.memoRole;
           if (memoOverlayTarget != null && roleKey) {
             seatMemos[memoOverlayTarget] = roleKey;
+            saveMemos();
             closeMemoOverlay();
             render(currentState);
           }

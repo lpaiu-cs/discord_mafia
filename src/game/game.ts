@@ -1320,27 +1320,9 @@ export class MafiaGame {
       return { targetId: null, killerId: null };
     }
 
-    const tallied = new Map<string, number>();
-    for (const record of eligible) {
-      tallied.set(record.targetId, (tallied.get(record.targetId) ?? 0) + 1);
-    }
-
-    const ranked = [...tallied.entries()].sort((left, right) => right[1] - left[1]);
-    if (ranked.length === 0) {
-      return { targetId: null, killerId: null };
-    }
-
-    if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) {
-      return { targetId: null, killerId: null };
-    }
-
-    const targetId = ranked[0][0];
-    const killerId =
-      eligible
-        .filter((record) => record.targetId === targetId)
-        .sort((left, right) => left.submittedAt - right.submittedAt)[0]?.actorId ?? null;
-
-    return { targetId, killerId };
+    // 마지막에 제출된 행동이 최종 타겟을 결정한다.
+    const lastSubmitted = eligible.sort((left, right) => right.submittedAt - left.submittedAt)[0];
+    return { targetId: lastSubmitted.targetId, killerId: lastSubmitted.actorId };
   }
 
   private resolveLoverRedirect(targetId: string, summary: ResolutionSummary, killerId: string | null): string | null {
@@ -1518,8 +1500,8 @@ export class MafiaGame {
         return {
           action: "mafiaKill",
           title: "마피아 처형 대상 선택",
-          description: "밤이 끝날 때 가장 많이 선택된 대상이 처형됩니다.",
-          targets: this.alivePlayers.filter((target) => target.userId !== userId).map((target) => target.userId),
+          description: "마지막으로 제출한 마피아의 선택이 최종 대상이 됩니다.",
+          targets: this.alivePlayers.map((target) => target.userId),
         };
       case "spy":
         return {

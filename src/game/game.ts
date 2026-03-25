@@ -586,8 +586,9 @@ export class MafiaGame {
       throw new Error("협박당한 플레이어는 오늘 투표할 수 없습니다.");
     }
 
-    if (!this.players.has(targetId)) {
-      throw new Error("투표 대상을 찾을 수 없습니다.");
+    const target = this.getPlayer(targetId);
+    if (!target || !target.alive) {
+      throw new Error("살아 있는 투표 대상만 선택할 수 있습니다.");
     }
 
     if (player.voteLockedToday || this.dayVotes.has(player.userId)) {
@@ -596,9 +597,9 @@ export class MafiaGame {
 
     player.voteLockedToday = true;
     this.dayVotes.set(player.userId, targetId);
-    this.appendPublicActivityLog(`누군가가 ${this.getPlayerOrThrow(targetId).displayName} 님에게 투표했습니다.`);
+    this.appendPublicActivityLog(`누군가가 ${target.displayName} 님에게 투표했습니다.`);
     await this.sendOrUpdateStatus(client);
-    return `${this.getPlayerOrThrow(targetId).displayName} 님에게 투표했습니다.`;
+    return `${target.displayName} 님에게 투표했습니다.`;
   }
 
   async handleTrialVote(client: Client, interaction: ButtonInteraction, vote: "yes" | "no"): Promise<void> {
@@ -685,6 +686,8 @@ export class MafiaGame {
       throw new Error("이미 지나간 낮의 기사 공개 버튼입니다.");
     }
 
+    this.assertAliveParticipant(actorId);
+
     if (!this.pendingArticle || this.pendingArticle.actorId !== actorId || this.dayNumber < this.pendingArticle.publishFromDay) {
       throw new Error("지금 공개할 수 있는 기사가 없습니다.");
     }
@@ -757,11 +760,22 @@ export class MafiaGame {
     }
 
     if (kind === "night") {
+      this.requirePhase("night");
+
       if (action === "spyInspectBonus") {
+        if (actor.role !== "spy") {
+          throw new Error("스파이만 추가 조사를 할 수 있습니다.");
+        }
+
         const primaryAction = this.nightActions.get(request.actorId);
         if (!primaryAction || primaryAction.action !== "spyInspect" || !this.spyBonusGrantedTonight.has(request.actorId)) {
           throw new Error("추가 조사 권한이 없습니다.");
         }
+
+        this.assertAllowedTarget(
+          this.alivePlayers.filter((target) => target.userId !== actor.userId).map((target) => target.userId),
+          targetId,
+        );
 
         const bonusRecord: NightActionRecord = {
           actorId: request.actorId,
@@ -774,9 +788,11 @@ export class MafiaGame {
         return { payload: this.buildSpyBonusPayload(actor, primaryAction.targetId, bonusRecord.targetId) };
       }
 
+      const prompt = this.validateNightSelection(actor, action, targetId);
+
       const record: NightActionRecord = {
         actorId: request.actorId,
-        action: action as NightActionType,
+        action: prompt.action,
         targetId,
         submittedAt: Date.now(),
       };
@@ -802,6 +818,15 @@ export class MafiaGame {
         throw new Error("지금은 유혹을 선택할 수 없습니다.");
       }
 
+      if (actor.role !== "madam") {
+        throw new Error("마담만 유혹을 선택할 수 있습니다.");
+      }
+
+      this.assertAllowedTarget(
+        this.alivePlayers.filter((target) => target.userId !== actor.userId).map((target) => target.userId),
+        targetId,
+      );
+
       this.pendingSeductionTargetId = targetId;
       if (this.isAliveRole(targetId, "mafia")) {
         this.contactPlayer(request.actorId);
@@ -812,6 +837,19 @@ export class MafiaGame {
     }
 
     if (kind === "terror") {
+      if (this.phase !== "defense") {
+        throw new Error("지금은 산화 대상을 고를 수 없습니다.");
+      }
+
+      if (actor.role !== "terrorist" || this.currentTrialTargetId !== actor.userId) {
+        throw new Error("지금은 산화 대상을 고를 수 없습니다.");
+      }
+
+      this.assertAllowedTarget(
+        this.alivePlayers.filter((target) => target.userId !== actor.userId).map((target) => target.userId),
+        targetId,
+      );
+
       this.pendingTrialBurns.set(request.actorId, { actorId: request.actorId, targetId });
       this.bumpStateVersion();
       return { payload: this.buildTerrorBurnPayload(actor, targetId) };
@@ -952,11 +990,12 @@ export class MafiaGame {
     const tallied = new Map<string, number>();
     for (const [voterId, targetId] of this.dayVotes.entries()) {
       const voter = this.getPlayer(voterId);
-      if (!voter || !voter.alive || this.bulliedToday.has(voterId)) {
+      const target = this.getPlayer(targetId);
+      if (!voter || !voter.alive || this.bulliedToday.has(voterId) || !target || !target.alive) {
         continue;
       }
 
-      tallied.set(targetId, (tallied.get(targetId) ?? 0) + this.getVoteWeight(voter));
+      tallied.set(target.userId, (tallied.get(target.userId) ?? 0) + this.getVoteWeight(voter));
     }
 
     const ranked = [...tallied.entries()].sort((left, right) => right[1] - left[1]);
@@ -2299,6 +2338,26 @@ export class MafiaGame {
     if (!Number.isFinite(token) || token !== this.phaseContext?.token) {
       throw new Error(message);
     }
+  }
+
+  private assertAllowedTarget(targetIds: string[], targetId: string, message = "선택할 수 없는 대상입니다."): void {
+    if (!targetIds.includes(targetId)) {
+      throw new Error(message);
+    }
+  }
+
+  private validateNightSelection(actor: PlayerState, action: string | undefined, targetId: string): PromptDefinition {
+    const prompt = this.getNightPrompt(actor.userId);
+    if (!prompt) {
+      throw new Error("이번 밤에 사용할 수 있는 능력이 없습니다.");
+    }
+
+    if (prompt.action !== action) {
+      throw new Error("현재 직업으로는 그 행동을 사용할 수 없습니다.");
+    }
+
+    this.assertAllowedTarget(prompt.targets, targetId);
+    return prompt;
   }
 
   private assertAliveParticipant(userId: string): PlayerState {

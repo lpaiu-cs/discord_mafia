@@ -48,6 +48,7 @@ const dashboardServer = new DashboardServer({
   joinTicketService,
   sessionStore,
   port: config.webPort,
+  secureCookies: config.secureCookies,
 });
 
 void dashboardServer.listen().then((port) => {
@@ -117,6 +118,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 채널에 로비가 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       await deferEphemeral(interaction);
       const member = await interaction.guild!.members.fetch(interaction.user.id);
@@ -129,6 +131,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 채널에 로비가 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       await deferEphemeral(interaction);
       game.removePlayer(interaction.user.id);
@@ -140,6 +143,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 채널에 로비가 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       if (interaction.user.id !== game.hostId) {
         throw new Error("게임 시작은 방장만 할 수 있습니다.");
@@ -169,6 +173,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 진행 중인 게임이 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       await deferEphemeral(interaction);
       if (game.phase === "lobby") {
@@ -183,6 +188,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 진행 중인 게임이 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       if (interaction.user.id !== game.hostId) {
         throw new Error("역할 공개는 방장만 볼 수 있습니다.");
@@ -195,6 +201,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 진행 중인 게임이 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       if (interaction.user.id !== game.hostId) {
         throw new Error("강제 진행은 방장만 할 수 있습니다.");
@@ -208,6 +215,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (!game) {
         throw new Error("현재 진행 중인 게임이 없습니다.");
       }
+      assertGameChannel(interaction, game);
 
       if (interaction.user.id !== game.hostId) {
         throw new Error("게임 종료는 방장만 할 수 있습니다.");
@@ -227,6 +235,10 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const game = manager.findByGameId(gameId);
   if (!game) {
     throw new Error("게임을 찾을 수 없습니다.");
+  }
+
+  if (kind !== "dashboard") {
+    assertGameChannel(interaction, game);
   }
 
   if (kind === "lobby") {
@@ -267,6 +279,8 @@ async function handleSelect(interaction: StringSelectMenuInteraction): Promise<v
   if (!game) {
     throw new Error("게임을 찾을 수 없습니다.");
   }
+
+  assertGameChannel(interaction, game);
 
   if (kind === "vote") {
     await game.handleVoteSelect(client, interaction);
@@ -414,6 +428,15 @@ function withEphemeralFlag(payload: InteractionReplyOptions): InteractionReplyOp
 function stripEphemeralFlags(payload: InteractionReplyOptions): InteractionEditReplyOptions {
   const { flags: _flags, ...rest } = payload;
   return rest;
+}
+
+function assertGameChannel(
+  interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction,
+  game: MafiaGame,
+): void {
+  if (!interaction.channelId || interaction.channelId !== game.channelId) {
+    throw new Error("이 게임은 생성된 채널에서만 관리할 수 있습니다.");
+  }
 }
 
 function scheduleEndedGameCleanup(game: MafiaGame): void {

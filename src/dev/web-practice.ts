@@ -63,6 +63,7 @@ async function main(): Promise<void> {
     joinTicketService,
     sessionStore,
     port,
+    secureCookies: false,
   });
 
   await server.listen();

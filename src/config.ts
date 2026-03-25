@@ -77,7 +77,20 @@ function readPublicBaseUrl(webMode: WebMode): string {
   return readString("PUBLIC_BASE_URL", "");
 }
 
+function resolveSecureCookies(webMode: WebMode, publicBaseUrl: string): boolean {
+  if (webMode === "quick_tunnel") {
+    return true;
+  }
+
+  try {
+    return new URL(publicBaseUrl).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const webMode = readWebMode();
+const publicBaseUrl = readPublicBaseUrl(webMode);
 
 export const config = {
   token: readRequired("DISCORD_BOT_TOKEN"),
@@ -86,7 +99,7 @@ export const config = {
   ruleset: readRuleset(),
   trialVoteSeconds: readInteger("TRIAL_VOTE_SECONDS", 10),
   autoDeleteSecretChannels: readBoolean("AUTO_DELETE_SECRET_CHANNELS", false),
-  publicBaseUrl: readPublicBaseUrl(webMode),
+  publicBaseUrl,
   webSessionSecret: readRequired("WEB_SESSION_SECRET"),
   joinTicketSecret: readRequired("JOIN_TICKET_SECRET"),
   webMode,
@@ -95,4 +108,5 @@ export const config = {
   joinTicketTtlSeconds: readInteger("JOIN_TICKET_TTL_SECONDS", 180),
   endedGameRetentionSeconds: readInteger("ENDED_GAME_RETENTION_SECONDS", 900),
   gameDeliveryMode: readDeliveryMode(),
+  secureCookies: resolveSecureCookies(webMode, publicBaseUrl),
 };

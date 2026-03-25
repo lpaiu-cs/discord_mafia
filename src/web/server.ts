@@ -16,6 +16,7 @@ interface DashboardServerOptions {
   joinTicketService: JoinTicketService;
   sessionStore: SessionStore;
   port: number;
+  secureCookies: boolean;
 }
 
 export class DashboardServer {
@@ -212,8 +213,7 @@ export class DashboardServer {
       const cookieValue = this.options.sessionStore.serializeCookieValue(session.id);
       const cookieName = this.cookieNameFor(payload.gameId);
       
-      const isProduction = process.env.NODE_ENV === "production";
-      const secureFlag = isProduction ? "Secure; " : "";
+      const secureFlag = this.options.secureCookies ? "Secure; " : "";
       
       response.setHeader(
         "Set-Cookie",

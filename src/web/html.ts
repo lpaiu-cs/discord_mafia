@@ -106,21 +106,26 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
       .hero-top {
         display: flex;
-        justify-content: space-between;
         align-items: flex-start;
-        gap: 12px;
-      }
-
-      .hero-copy {
         min-width: 0;
-        display: grid;
-        gap: 4px;
       }
 
-      .hero h1 {
-        margin: 0;
-        font-size: 1.12rem;
-        line-height: 1.2;
+      .hero-meta {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .hero-meta::-webkit-scrollbar {
+        display: none;
+      }
+
+      .hero-meta > * {
+        flex: 0 0 auto;
       }
 
       .nick-color-1 { color: #ff7171; }
@@ -131,20 +136,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       .nick-color-6 { color: #c597ff; }
       .nick-color-7 { color: #f5f7fb; }
       .nick-color-8 { color: #ff94d1; }
-
-      #hero-subtitle {
-        display: none;
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.84rem;
-        line-height: 1.35;
-      }
-
-      .hero-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
 
       .meta-chip {
         display: inline-flex;
@@ -1409,10 +1400,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
           padding: 22px 20px 36px;
         }
 
-        #hero-subtitle {
-          display: block;
-        }
-
         .seat-grid {
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
@@ -1490,10 +1477,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
     <div class="shell">
       <header class="hero">
         <div class="hero-top">
-          <div class="hero-copy">
-            <h1 id="hero-title"></h1>
-            <p id="hero-subtitle"></p>
-          </div>
           <div class="hero-meta" id="hero-meta"></div>
         </div>
       </header>
@@ -2066,10 +2049,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         const team = teamClass(state);
         const phase = state.room.phase;
         document.body.dataset.phase = phase;
-        const heroTitle = document.getElementById("hero-title");
-        heroTitle.textContent = state.viewer.displayName;
-        heroTitle.className = nicknameClassForUser(state, state.viewer.userId);
-        document.getElementById("hero-subtitle").textContent = '게임 ID ' + state.room.gameId;
 
         const heroEl = document.querySelector(".hero");
         updateClass(heroEl, "hero hero--" + phase);

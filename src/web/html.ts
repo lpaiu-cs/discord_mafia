@@ -1721,6 +1721,49 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       const chatDrafts = Object.create(null);
       const pendingAutoscrollChannels = new Set();
 
+      function updateDOM(oldNode, newNode) {
+        if (oldNode.isEqualNode && oldNode.isEqualNode(newNode)) return;
+        if (oldNode.nodeType === Node.TEXT_NODE) {
+          if (oldNode.nodeValue !== newNode.nodeValue) oldNode.nodeValue = newNode.nodeValue;
+          return;
+        }
+        if (oldNode.nodeType !== Node.ELEMENT_NODE) return;
+        if (oldNode.nodeName !== newNode.nodeName) {
+           oldNode.replaceWith(newNode.cloneNode(true));
+           return;
+        }
+        const newAttrs = newNode.attributes;
+        const oldAttrs = oldNode.attributes;
+        for (let i = oldAttrs.length - 1; i >= 0; i--) {
+          const name = oldAttrs[i].name;
+          if (!newNode.hasAttribute(name)) oldNode.removeAttribute(name);
+        }
+        for (let i = 0; i < newAttrs.length; i++) {
+          const name = newAttrs[i].name;
+          const value = newAttrs[i].value;
+          if (oldNode.getAttribute(name) !== value) {
+            oldNode.setAttribute(name, value);
+          }
+        }
+        if (oldNode.nodeName === "INPUT" || oldNode.nodeName === "TEXTAREA" || oldNode.nodeName === "SELECT") {
+          if (oldNode !== document.activeElement && oldNode.value !== newNode.value) {
+             oldNode.value = newNode.value;
+          }
+        }
+        const oldChildren = Array.from(oldNode.childNodes);
+        const newChildren = Array.from(newNode.childNodes);
+        const max = Math.max(oldChildren.length, newChildren.length);
+        for (let i = 0; i < max; i++) {
+          if (!oldChildren[i]) {
+            oldNode.appendChild(newChildren[i].cloneNode(true));
+          } else if (!newChildren[i]) {
+            oldNode.removeChild(oldChildren[i]);
+          } else {
+            updateDOM(oldChildren[i], newChildren[i]);
+          }
+        }
+      }
+
 
       function updateHtml(selector, html, parent = document) {
           const el = typeof selector === 'string' ? parent.querySelector(selector) : selector;
@@ -1909,9 +1952,11 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
             return;
           }
 
-          input.value = typeof chatDrafts[channel] === "string" ? chatDrafts[channel] : "";
+          if (document.activeElement !== input) {
+            input.value = typeof chatDrafts[channel] === "string" ? chatDrafts[channel] : "";
+          }
 
-          if (focused && focused.channel === channel) {
+          if (focused && focused.channel === channel && document.activeElement !== input) {
             input.focus({ preventScroll: true });
             const end = Math.min(focused.end, input.value.length);
             const start = Math.min(focused.start, end);
@@ -2022,56 +2067,65 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         const heroTitle = document.getElementById("hero-title");
         heroTitle.textContent = state.viewer.displayName;
         heroTitle.className = nicknameClassForUser(state, state.viewer.userId);
-        document.getElementById("hero-subtitle").textContent = `게임 ID ${state.room.gameId}`;
+        document.getElementById("hero-subtitle").textContent = '게임 ID ' + state.room.gameId;
 
         const heroEl = document.querySelector(".hero");
         updateClass(heroEl, "hero hero--" + phase);
 
         updateHtml(document.getElementById("hero-meta"), [
-          `<div class="phase-chip phase-chip--${phase}">${escapeHtml(phaseDisplayText(state))}</div>`,
-          `<div class="meta-chip role-chip role-chip--${team}"><strong>${escapeHtml(state.viewer.roleLabel)}</strong></div>`,
-          `<div class="timer-chip"><strong data-live-deadline>${escapeHtml(formatDeadline(state.room.deadlineAt))}</strong><div class="timer-bar" data-timer-total="${state.room.deadlineAt ? 300 : 0}"><div class="timer-bar-fill" data-live-timer-fill></div></div></div>`,
+          '<div class="phase-chip phase-chip--' + phase + '">' + escapeHtml(phaseDisplayText(state)) + '</div>',
+    '<div class="meta-chip role-chip role-chip--' + team + '"><strong>' + escapeHtml(state.viewer.roleLabel) + '</strong></div>',
+    '<div class="timer-chip"><strong data-live-deadline>' + escapeHtml(formatDeadline(state.room.deadlineAt)) + '</strong><div class="timer-bar" data-timer-total="' + (state.room.deadlineAt ? 300 : 0) + '"><div class="timer-bar-fill" data-live-timer-fill></div></div></div>',
         ].join(""));
-      }
-      let chatSeenCount = { public: 0, secret: 0, logs: 0 };
-      function renderMobileDock(state) {
-        if (activeSection === "public") chatSeenCount.public = state.publicChat.messages.length;
-        if (activeSection === "secret") chatSeenCount.secret = state.secretChats.reduce((acc, c) => acc + c.messages.length, 0);
-        if (activeSection === "logs") chatSeenCount.logs = state.systemLog.privateLines.length;
+}
+let chatSeenCount = { public: 0, secret: 0, logs: 0 };
+function renderMobileDock(state) {
+  if (activeSection === "public") chatSeenCount.public = state.publicChat.messages.length;
+  if (activeSection === "secret") chatSeenCount.secret = state.secretChats.reduce((acc, c) => acc + c.messages.length, 0);
+  if (activeSection === "logs") chatSeenCount.logs = state.systemLog.privateLines.length;
 
-        const currentSecretCount = state.secretChats.reduce((acc, c) => acc + c.messages.length, 0);
+  const currentSecretCount = state.secretChats.reduce((acc, c) => acc + c.messages.length, 0);
 
-        const unread = {
-          state: false,
-          actions: false,
-          public: state.publicChat.messages.length > chatSeenCount.public,
-          secret: currentSecretCount > chatSeenCount.secret,
-          logs: state.systemLog.privateLines.length > chatSeenCount.logs,
-        };
+  const unread = {
+    state: false,
+    actions: false,
+    public: state.publicChat.messages.length > chatSeenCount.public,
+    secret: currentSecretCount > chatSeenCount.secret,
+    logs: state.systemLog.privateLines.length > chatSeenCount.logs,
+  };
 
-        const actionCount = actionableControlCount(state);
+  const actionCount = actionableControlCount(state);
 
-        updateHtml(document.getElementById("mobile-dock-root"), [
-          '<nav class="mobile-dock">',
-          dockSections
-            .map((section) => [
-              '<button type="button" class="dock-button',
-              activeSection === section.id ? ' is-active"' : '"',
-              ' data-nav-section="' + section.id + '">',
-              '<span class="dock-icon">' + section.icon + '</span>',
-              '<strong>' + section.label + '</strong>',
-              section.id === "actions" && actionCount > 0 ? '<span class="dock-badge">' + actionCount + '</span>' : "",
-              section.id !== "actions" && unread[section.id] ? '<span class="dock-badge dock-badge--dot"></span>' : "",
-              '</button>'
-            ].join(''))
-            .join(""),
-          '</nav>'
-        ].join("");
-      }
+  const newDockHtml = [
+    '<nav class="mobile-dock">',
+    dockSections
+      .map((section) => [
+        '<button type="button" class="dock-button',
+        activeSection === section.id ? ' is-active"' : '"',
+        ' data-nav-section="' + section.id + '">',
+        '<span class="dock-icon">' + section.icon + '</span>',
+        '<strong>' + section.label + '</strong>',
+        section.id === "actions" && actionCount > 0 ? '<span class="dock-badge">' + actionCount + '</span>' : "",
+        section.id !== "actions" && unread[section.id] ? '<span class="dock-badge dock-badge--dot"></span>' : "",
+        '</button>'
+      ].join(''))
+      .join(""),
+    '</nav>'
+  ].join("");
 
-      function actionControl(control) {
-        if (control.type === "info") {
-          return \`<div class="control"><strong>\${escapeHtml(control.title)}</strong><div class="muted">\${escapeHtml(control.description)}</div></div>\`;
+  const dockRoot = document.getElementById("mobile-dock-root");
+  if (!dockRoot.firstElementChild) {
+    dockRoot.innerHTML = newDockHtml;
+  } else {
+    const temp = document.createElement("div");
+    temp.innerHTML = newDockHtml;
+    updateDOM(dockRoot, temp);
+  }
+}
+
+function actionControl(control) {
+  if (control.type === "info") {
+    return \`<div class="control"><strong>\${escapeHtml(control.title)}</strong><div class="muted">\${escapeHtml(control.description)}</div></div>\`;
         }
 
         if (control.type === "button") {
@@ -2405,7 +2459,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
             \`
           : "";
 
-        document.getElementById("app").innerHTML = \`
+        const newAppHtml = \`
           <div class="dashboard-grid">
             <section class="\${sectionClass("state")} span-4" data-section="state">
               <div class="panel-head">
@@ -2485,6 +2539,16 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
             </section>
           </div>
         \`;
+
+        const appEl = document.getElementById("app");
+        if (!appEl.firstElementChild) {
+          appEl.innerHTML = newAppHtml;
+        } else {
+          const temp = document.createElement("div");
+          temp.innerHTML = newAppHtml;
+          updateDOM(appEl, temp);
+        }
+
         restoreChatDraftState(focusedChat);
         restoreActionDraftState(actionDrafts);
         updateDeadlineDisplays();
@@ -2787,8 +2851,8 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
     </script>
   </body>
 </html>`;
-}
+  }
 
-function escapeAttribute(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
+  function escapeAttribute(value: string): string {
+    return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  }

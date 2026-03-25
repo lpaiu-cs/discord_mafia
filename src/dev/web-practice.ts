@@ -91,7 +91,7 @@ function startPracticeScenario(
   game: ReturnType<typeof createPracticeGame>["game"],
   steps: PracticeStep[],
 ): NodeJS.Timeout[] {
-  return steps.map((step) =>
+  const handles = steps.map((step) =>
     setTimeout(() => {
       try {
         step.run(game);
@@ -102,6 +102,58 @@ function startPracticeScenario(
       }
     }, step.afterMs),
   );
+
+  const autoBotTimer = setInterval(() => {
+    let changed = false;
+    
+    // NPC Chatter
+    if ((game.phase === "discussion" || game.phase === "night") && Math.random() < 0.15) {
+      const aliveBots = Array.from(game.players.values()).filter(p => p.alive && p.userId !== "practice-viewer");
+      if (aliveBots.length > 0) {
+        const bot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
+        const channel = game.phase === "night" ? "mafia" : "public";
+        // Only chat if bot has access
+        if (game.canWriteChat(bot.userId, channel)) {
+           const texts = ["음... 누굴까요?", "일단 지켜보죠.", "어젯밤에 별일 없었나요?", "투표합시다!", "저는 시민입니다.", "마피아는 누구?", "수상한 사람이 있네요."];
+           const content = texts[Math.floor(Math.random() * texts.length)];
+           game.sendChat(bot.userId, channel, content);
+           changed = true;
+        }
+      }
+    }
+
+    if (game.phase === "vote") {
+      const aliveBots = Array.from(game.players.values()).filter(p => p.alive && p.userId !== "practice-viewer" && !game.dayVotes.has(p.userId));
+      if (aliveBots.length > 0) {
+        const bot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
+        const targets = Array.from(game.players.values()).filter(p => p.alive).map(p => p.userId);
+        if (targets.length > 0) {
+          const targetId = targets[Math.floor(Math.random() * targets.length)];
+          game.dayVotes.set(bot.userId, targetId);
+          (game as any).appendPublicActivityLog(`누군가가 ${game.getPlayerOrThrow(targetId).displayName} 님에게 투표했습니다.`);
+          changed = true;
+          console.log(`[web-practice] NPC ${bot.userId} -> voted ${targetId}`);
+        }
+      }
+    } else if (game.phase === "trial" && game.currentTrialTargetId) {
+      const aliveBots = Array.from(game.players.values()).filter(p => p.alive && p.userId !== "practice-viewer" && p.userId !== game.currentTrialTargetId && !game.trialVotes.has(p.userId));
+      if (aliveBots.length > 0) {
+        const bot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
+        const vote = Math.random() < 0.6 ? "yes" : "no"; // Slightly biased towards yes for drama
+        game.trialVotes.set(bot.userId, vote);
+        (game as any).appendPublicActivityLog(vote === "yes" ? "누군가가 찬성에 투표했습니다." : "누군가가 반대에 투표했습니다.");
+        changed = true;
+        console.log(`[web-practice] NPC ${bot.userId} -> trial voted ${vote}`);
+      }
+    }
+
+    if (changed) {
+      game.bumpStateVersion();
+    }
+  }, 1800);
+
+  handles.push(autoBotTimer);
+  return handles;
 }
 
 function readInteger(name: string, fallback: number): number {

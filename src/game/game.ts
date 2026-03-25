@@ -271,9 +271,9 @@ export class MafiaGame {
     this.bumpStateVersion();
   }
 
-  private setPublicLines(lines: string[]): void {
+  private setPublicLines(lines: string[], chatLines: string[] = lines): void {
     this.lastPublicLines = [...lines];
-    for (const line of lines) {
+    for (const line of chatLines) {
       this.appendSystemChat("public", line);
     }
     this.bumpStateVersion();
@@ -316,14 +316,9 @@ export class MafiaGame {
       case "public":
         return true;
       case "mafia":
-        return isMafiaTeam(player.role) && player.alive;
       case "lover":
-        return player.role === "lover" && Boolean(player.loverId) && player.alive;
       case "graveyard":
-        if (this.phase !== "night") {
-          return false;
-        }
-        return (!player.alive || player.role === "medium");
+        return this.getSecretChatAccess(channel).readableIds.has(userId);
       default:
         return false;
     }
@@ -348,14 +343,9 @@ export class MafiaGame {
         }
         return false;
       case "mafia":
-        return this.phase === "night";
       case "lover":
-        return this.phase === "night";
       case "graveyard":
-        if (player.role === "medium" && player.alive) {
-          return this.phase === "night";
-        }
-        return this.phase === "night" && !player.alive && !player.ascended;
+        return this.getSecretChatAccess(channel).writableIds.has(userId);
       default:
         return false;
     }
@@ -947,8 +937,9 @@ export class MafiaGame {
     this.phase = "discussion";
     const duration = Math.max(this.alivePlayers.length, 1) * DISCUSSION_SECONDS_PER_PLAYER * 1_000;
     this.phaseContext = this.newPhaseContext(duration);
-    const publicLines = [`${formatDayBreakLabel(this.dayNumber)}이 밝았습니다.`, ...morningLines];
-    this.setPublicLines(publicLines);
+    const daybreakLine = `${formatDayBreakLabel(this.dayNumber)}이 밝았습니다.`;
+    const publicLines = [daybreakLine, ...morningLines];
+    this.setPublicLines(publicLines, [daybreakLine]);
 
     await this.syncSecretChannels(client);
     await this.sendPhaseMessage(client, {
@@ -1788,43 +1779,25 @@ export class MafiaGame {
     const mafiaChannel = await this.fetchSecretTextChannel(client, this.secretChannels.mafiaId);
     const loverChannel = await this.fetchSecretTextChannel(client, this.secretChannels.loverId);
     const graveyardChannel = await this.fetchSecretTextChannel(client, this.secretChannels.graveyardId);
-    const deadIds = this.deadPlayers.map((player) => player.userId);
 
     if (mafiaChannel) {
-      const mafiaIds = this.alivePlayers
-        .filter((player) => player.role === "mafia" || player.isContacted)
-        .map((player) => player.userId);
-      const visibleIds = this.phase === "night" ? [...new Set([...mafiaIds, ...deadIds])] : mafiaIds;
-      const sendIds = new Set(this.phase === "night" ? mafiaIds : []);
+      const { readableIds, writableIds } = this.getSecretChatAccess("mafia");
+      const visibleIds = [...readableIds];
+      const sendIds = writableIds;
       await this.syncChannelMembers(mafiaChannel, visibleIds, false, sendIds);
     }
 
-    if (loverChannel && this.loverPair) {
-      const loverIds = this.loverPair.filter((userId) => this.getPlayer(userId)?.alive) as string[];
-      const visibleIds = this.phase === "night" ? [...new Set([...loverIds, ...deadIds])] : loverIds;
-      const sendIds = new Set(this.phase === "night" ? loverIds : []);
+    if (loverChannel) {
+      const { readableIds, writableIds } = this.getSecretChatAccess("lover");
+      const visibleIds = [...readableIds];
+      const sendIds = writableIds;
       await this.syncChannelMembers(loverChannel, visibleIds, false, sendIds);
     }
 
     if (graveyardChannel) {
-      const visibleIds = new Set<string>();
-      const sendIds = new Set<string>();
-
-      if (this.phase === "night") {
-        for (const player of this.deadPlayers) {
-          visibleIds.add(player.userId);
-          if (!player.ascended) {
-            sendIds.add(player.userId);
-          }
-        }
-
-        const medium = this.alivePlayers.find((player) => player.role === "medium");
-        if (medium) {
-          visibleIds.add(medium.userId);
-          sendIds.add(medium.userId);
-        }
-      }
-
+      const { readableIds, writableIds } = this.getSecretChatAccess("graveyard");
+      const visibleIds = [...readableIds];
+      const sendIds = writableIds;
       await this.syncChannelMembers(graveyardChannel, [...visibleIds], false, sendIds);
     }
   }
@@ -2318,6 +2291,73 @@ export class MafiaGame {
 
   private isPoliticianEffectBlocked(userId: string): boolean {
     return this.ruleset === "balance" && this.pendingSeductionTargetId === userId;
+  }
+
+  private getSecretChatAccess(channel: Exclude<WebChatChannel, "public">): {
+    readableIds: Set<string>;
+    writableIds: Set<string>;
+  } {
+    const readableIds = new Set<string>();
+    const writableIds = new Set<string>();
+
+    switch (channel) {
+      case "mafia": {
+        if (this.phase !== "night") {
+          return { readableIds, writableIds };
+        }
+
+        for (const player of this.alivePlayers) {
+          if (player.role === "mafia" || player.isContacted) {
+            readableIds.add(player.userId);
+            writableIds.add(player.userId);
+          }
+        }
+
+        for (const player of this.deadPlayers) {
+          readableIds.add(player.userId);
+        }
+
+        return { readableIds, writableIds };
+      }
+      case "lover": {
+        if (this.phase !== "night" || !this.loverPair) {
+          return { readableIds, writableIds };
+        }
+
+        for (const player of this.alivePlayers) {
+          if (player.role === "lover" && player.loverId) {
+            readableIds.add(player.userId);
+            writableIds.add(player.userId);
+          }
+        }
+
+        for (const player of this.deadPlayers) {
+          readableIds.add(player.userId);
+        }
+
+        return { readableIds, writableIds };
+      }
+      case "graveyard": {
+        if (this.phase !== "night") {
+          return { readableIds, writableIds };
+        }
+
+        for (const player of this.deadPlayers) {
+          readableIds.add(player.userId);
+          if (!player.ascended) {
+            writableIds.add(player.userId);
+          }
+        }
+
+        const medium = this.alivePlayers.find((player) => player.role === "medium");
+        if (medium) {
+          readableIds.add(medium.userId);
+          writableIds.add(medium.userId);
+        }
+
+        return { readableIds, writableIds };
+      }
+    }
   }
 
   private requirePhase(expected: Phase): void {

@@ -439,6 +439,7 @@ class RateLimiter {
 
   check(key: string): boolean {
     const now = Date.now();
+    this.cleanup(now);
     const bucket = this.buckets.get(key);
     if (!bucket || bucket.resetAt <= now) {
       this.buckets.set(key, { count: 1, resetAt: now + this.windowMs });
@@ -451,6 +452,14 @@ class RateLimiter {
 
     bucket.count += 1;
     return true;
+  }
+
+  private cleanup(now: number): void {
+    for (const [key, bucket] of this.buckets.entries()) {
+      if (bucket.resetAt <= now) {
+        this.buckets.delete(key);
+      }
+    }
   }
 }
 
@@ -465,9 +474,17 @@ function parseCookies(header: string): Record<string, string> {
         return accumulator;
       }
 
-      accumulator[key] = decodeURIComponent(rest.join("="));
+      accumulator[key] = safeDecodeCookieValue(rest.join("="));
       return accumulator;
     }, {});
+}
+
+function safeDecodeCookieValue(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function normalizeChatChannel(value: string): "public" | "mafia" | "lover" | "graveyard" | null {

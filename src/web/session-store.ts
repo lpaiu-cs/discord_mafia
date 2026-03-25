@@ -13,9 +13,13 @@ export class SessionStore {
   private readonly sessions = new Map<string, WebSession>();
   private readonly currentByGameUser = new Map<string, string>();
 
-  constructor(private readonly secret: string) {}
+  constructor(
+    private readonly secret: string,
+    private readonly maxIdleMs = 12 * 60 * 60 * 1_000,
+  ) {}
 
   create(gameId: string, discordUserId: string): WebSession {
+    this.cleanup();
     this.invalidateForGameUser(gameId, discordUserId);
 
     const now = Date.now();
@@ -34,6 +38,7 @@ export class SessionStore {
   }
 
   get(sessionId: string): WebSession | null {
+    this.cleanup();
     const session = this.sessions.get(sessionId);
     if (!session) {
       return null;
@@ -49,6 +54,7 @@ export class SessionStore {
   }
 
   touch(sessionId: string): WebSession | null {
+    this.cleanup();
     const session = this.get(sessionId);
     if (!session) {
       return null;
@@ -78,6 +84,16 @@ export class SessionStore {
     }
   }
 
+  invalidateGame(gameId: string): void {
+    const sessionIds = [...this.sessions.values()]
+      .filter((session) => session.gameId === gameId)
+      .map((session) => session.id);
+
+    for (const sessionId of sessionIds) {
+      this.invalidate(sessionId);
+    }
+  }
+
   serializeCookieValue(sessionId: string): string {
     const signature = this.sign(sessionId);
     return `${sessionId}.${signature}`;
@@ -103,6 +119,17 @@ export class SessionStore {
 
   private key(gameId: string, discordUserId: string): string {
     return `${gameId}:${discordUserId}`;
+  }
+
+  private cleanup(now = Date.now()): void {
+    const threshold = now - this.maxIdleMs;
+    const expired = [...this.sessions.values()]
+      .filter((session) => session.lastSeenAt <= threshold)
+      .map((session) => session.id);
+
+    for (const sessionId of expired) {
+      this.invalidate(sessionId);
+    }
   }
 }
 

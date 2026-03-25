@@ -221,3 +221,39 @@ test("로컬 HTTP 프리뷰에서는 세션 쿠키에 Secure 를 붙이지 않�
   assert.equal(exchangeResponse.status, 302);
   assert.doesNotMatch(setCookie, /Secure/);
 });
+
+test("잘못 인코딩된 쿠키 헤더는 500 대신 401 로 처리된다", async (t) => {
+  const manager = new GameManager();
+  const guild = { id: "guild-1" } as Guild;
+  const host = createMember("user-1", "host");
+  const game = manager.create(guild, "channel-1", host, "balance");
+  game.phase = "discussion";
+  game.phaseContext = {
+    token: 1,
+    startedAt: Date.now(),
+    deadlineAt: Date.now() + 60_000,
+  };
+
+  const joinTicketService = new JoinTicketService("join-secret");
+  const sessionStore = new SessionStore("session-secret");
+  const server = new DashboardServer({
+    client: {} as Client,
+    gameManager: manager,
+    joinTicketService,
+    sessionStore,
+    port: 0,
+    secureCookies: true,
+  });
+  const port = await server.listen();
+  t.after(async () => {
+    await server.close();
+  });
+
+  const response = await fetch(`http://127.0.0.1:${port}/api/game/${encodeURIComponent(game.id)}/state`, {
+    headers: {
+      Cookie: "mafia_session=%E0%A4%A",
+    },
+  });
+
+  assert.equal(response.status, 401);
+});

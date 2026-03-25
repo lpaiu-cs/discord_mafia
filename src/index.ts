@@ -105,6 +105,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
       if (game?.phase === "ended") {
         cancelEndedGameCleanup(game.id);
         await publicBaseUrlProvider.stop(game.id);
+        sessionStore.invalidateGame(game.id);
         manager.delete(interaction.guildId);
       }
 
@@ -451,6 +452,7 @@ function scheduleEndedGameCleanup(game: MafiaGame): void {
     void publicBaseUrlProvider.stop(game.id).catch((error) => {
       console.error(`failed to stop public base url provider for ended game ${game.id}`, error);
     });
+    sessionStore.invalidateGame(game.id);
     manager.delete(game.guildId);
   }, config.endedGameRetentionSeconds * 1_000);
   endedGameCleanupTimers.set(game.id, timeout);

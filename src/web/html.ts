@@ -1666,12 +1666,44 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         AudioManager.load("/resource/audio/tick.wav");
       }
 
-      document.body.addEventListener("pointerdown", (e) => {
+      let pointerRenderLock = false;
+      let pointerReleaseTimer = null;
+      let pendingRenderState = null;
+
+      function holdRenderDuringPointer() {
+        pointerRenderLock = true;
+        if (pointerReleaseTimer) {
+          clearTimeout(pointerReleaseTimer);
+          pointerReleaseTimer = null;
+        }
+      }
+
+      function releaseRenderAfterPointer() {
+        if (pointerReleaseTimer) {
+          clearTimeout(pointerReleaseTimer);
+        }
+        pointerReleaseTimer = setTimeout(() => {
+          pointerReleaseTimer = null;
+          pointerRenderLock = false;
+          if (pendingRenderState) {
+            const nextState = pendingRenderState;
+            pendingRenderState = null;
+            renderNow(nextState);
+          }
+        }, 0);
+      }
+
+      document.body.addEventListener("pointerdown", (event) => {
+         holdRenderDuringPointer();
          preloadAudio();
-         if (e.target.closest('button, .action-grid-cell, .memo-role-cell, .dock-button')) {
+         const target = event.target;
+         if (target instanceof Element && target.closest('button, .action-grid-cell, .memo-role-cell, .dock-button')) {
             AudioManager.playSfx("/resource/audio/click.wav");
          }
       }, { capture: true });
+      document.addEventListener("pointerup", releaseRenderAfterPointer, true);
+      document.addEventListener("pointercancel", releaseRenderAfterPointer, true);
+      window.addEventListener("blur", releaseRenderAfterPointer);
 
       function showPhaseOverlay(phaseName, label) {
          let icon = "/resource/images/sun_icon.svg";
@@ -1720,50 +1752,6 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       let activeSection = "actions";
       const chatDrafts = Object.create(null);
       const pendingAutoscrollChannels = new Set();
-
-      function updateDOM(oldNode, newNode) {
-        if (oldNode.isEqualNode && oldNode.isEqualNode(newNode)) return;
-        if (oldNode.nodeType === Node.TEXT_NODE) {
-          if (oldNode.nodeValue !== newNode.nodeValue) oldNode.nodeValue = newNode.nodeValue;
-          return;
-        }
-        if (oldNode.nodeType !== Node.ELEMENT_NODE) return;
-        if (oldNode.nodeName !== newNode.nodeName) {
-           oldNode.replaceWith(newNode.cloneNode(true));
-           return;
-        }
-        const newAttrs = newNode.attributes;
-        const oldAttrs = oldNode.attributes;
-        for (let i = oldAttrs.length - 1; i >= 0; i--) {
-          const name = oldAttrs[i].name;
-          if (!newNode.hasAttribute(name)) oldNode.removeAttribute(name);
-        }
-        for (let i = 0; i < newAttrs.length; i++) {
-          const name = newAttrs[i].name;
-          const value = newAttrs[i].value;
-          if (oldNode.getAttribute(name) !== value) {
-            oldNode.setAttribute(name, value);
-          }
-        }
-        if (oldNode.nodeName === "INPUT" || oldNode.nodeName === "TEXTAREA" || oldNode.nodeName === "SELECT") {
-          if (oldNode !== document.activeElement && oldNode.value !== newNode.value) {
-             oldNode.value = newNode.value;
-          }
-        }
-        const oldChildren = Array.from(oldNode.childNodes);
-        const newChildren = Array.from(newNode.childNodes);
-        const max = Math.max(oldChildren.length, newChildren.length);
-        for (let i = 0; i < max; i++) {
-          if (!oldChildren[i]) {
-            oldNode.appendChild(newChildren[i].cloneNode(true));
-          } else if (!newChildren[i]) {
-            oldNode.removeChild(oldChildren[i]);
-          } else {
-            updateDOM(oldChildren[i], newChildren[i]);
-          }
-        }
-      }
-
 
       function updateHtml(selector, html, parent = document) {
           const el = typeof selector === 'string' ? parent.querySelector(selector) : selector;
@@ -2096,7 +2084,7 @@ function renderMobileDock(state) {
 
   const actionCount = actionableControlCount(state);
 
-  const newDockHtml = [
+  updateHtml(document.getElementById("mobile-dock-root"), [
     '<nav class="mobile-dock">',
     dockSections
       .map((section) => [
@@ -2111,16 +2099,7 @@ function renderMobileDock(state) {
       ].join(''))
       .join(""),
     '</nav>'
-  ].join("");
-
-  const dockRoot = document.getElementById("mobile-dock-root");
-  if (!dockRoot.firstElementChild) {
-    dockRoot.innerHTML = newDockHtml;
-  } else {
-    const temp = document.createElement("div");
-    temp.innerHTML = newDockHtml;
-    updateDOM(dockRoot, temp);
-  }
+  ].join(""));
 }
 
 function actionControl(control) {
@@ -2405,6 +2384,15 @@ function actionControl(control) {
       }
 
       function render(state) {
+        if (pointerRenderLock) {
+          pendingRenderState = state;
+          return;
+        }
+        pendingRenderState = null;
+        renderNow(state);
+      }
+
+      function renderNow(state) {
         if (currentPhaseStr !== state.room.phase) {
           currentPhaseStr = state.room.phase;
           
@@ -2540,14 +2528,7 @@ function actionControl(control) {
           </div>
         \`;
 
-        const appEl = document.getElementById("app");
-        if (!appEl.firstElementChild) {
-          appEl.innerHTML = newAppHtml;
-        } else {
-          const temp = document.createElement("div");
-          temp.innerHTML = newAppHtml;
-          updateDOM(appEl, temp);
-        }
+        updateHtml(document.getElementById("app"), newAppHtml);
 
         restoreChatDraftState(focusedChat);
         restoreActionDraftState(actionDrafts);

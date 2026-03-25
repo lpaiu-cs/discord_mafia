@@ -13,6 +13,27 @@ import { SessionStore } from "../web/session-store";
 import { DashboardServer } from "../web/server";
 
 const DEFAULT_PORT = 3014;
+const PRACTICE_VIEWER_ID = "practice-viewer";
+const PUBLIC_CHAT_LINES = [
+  "일단 발언을 더 들어봅시다.",
+  "저는 아직 판단을 보류하겠습니다.",
+  "수상한 사람이 한 명 보이긴 합니다.",
+  "근거를 조금 더 말해 주세요.",
+  "투표 전에 정리해 봅시다.",
+];
+const MAFIA_CHAT_LINES = [
+  "밤에는 조용히 맞춰 봅시다.",
+  "다음 낮 반응을 먼저 보죠.",
+  "겉으로는 시민처럼 움직이겠습니다.",
+  "이번엔 무리하지 말고 넘어가죠.",
+];
+const GRAVEYARD_CHAT_LINES = [
+  "망자 채팅은 이렇게 이어집니다.",
+  "밤에만 열리는 채널이 맞습니다.",
+  "새로 온 사람 있으면 말해 주세요.",
+];
+
+type PracticeGame = ReturnType<typeof createPracticeGame>["game"];
 
 async function main(): Promise<void> {
   const port = readInteger("DEV_PRACTICE_PORT", DEFAULT_PORT);
@@ -88,7 +109,7 @@ async function main(): Promise<void> {
 
 function startPracticeScenario(
   definition: PracticeScenarioDefinition,
-  game: ReturnType<typeof createPracticeGame>["game"],
+  game: PracticeGame,
   steps: PracticeStep[],
 ): NodeJS.Timeout[] {
   const handles = steps.map((step) =>
@@ -103,57 +124,219 @@ function startPracticeScenario(
     }, step.afterMs),
   );
 
-  const autoBotTimer = setInterval(() => {
-    let changed = false;
-    
-    // NPC Chatter
-    if ((game.phase === "discussion" || game.phase === "night") && Math.random() < 0.15) {
-      const aliveBots = Array.from(game.players.values()).filter(p => p.alive && p.userId !== "practice-viewer");
-      if (aliveBots.length > 0) {
-        const bot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
-        const channel = game.phase === "night" ? "mafia" : "public";
-        // Only chat if bot has access
-        if (game.canWriteChat(bot.userId, channel)) {
-           const texts = ["음... 누굴까요?", "일단 지켜보죠.", "어젯밤에 별일 없었나요?", "투표합시다!", "저는 시민입니다.", "마피아는 누구?", "수상한 사람이 있네요."];
-           const content = texts[Math.floor(Math.random() * texts.length)];
-           game.sendChat(bot.userId, channel, content);
-           changed = true;
-        }
-      }
-    }
+  let lastPhaseKey = currentPracticePhaseKey(game);
+  schedulePracticeBots(definition.id, game, handles);
 
-    if (game.phase === "vote") {
-      const aliveBots = Array.from(game.players.values()).filter(p => p.alive && p.userId !== "practice-viewer" && !game.dayVotes.has(p.userId));
-      if (aliveBots.length > 0) {
-        const bot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
-        const targets = Array.from(game.players.values()).filter(p => p.alive).map(p => p.userId);
-        if (targets.length > 0) {
-          const targetId = targets[Math.floor(Math.random() * targets.length)];
-          game.dayVotes.set(bot.userId, targetId);
-          (game as any).appendPublicActivityLog(`누군가가 ${game.getPlayerOrThrow(targetId).displayName} 님에게 투표했습니다.`);
-          changed = true;
-          console.log(`[web-practice] NPC ${bot.userId} -> voted ${targetId}`);
-        }
-      }
-    } else if (game.phase === "trial" && game.currentTrialTargetId) {
-      const aliveBots = Array.from(game.players.values()).filter(p => p.alive && p.userId !== "practice-viewer" && p.userId !== game.currentTrialTargetId && !game.trialVotes.has(p.userId));
-      if (aliveBots.length > 0) {
-        const bot = aliveBots[Math.floor(Math.random() * aliveBots.length)];
-        const vote = Math.random() < 0.6 ? "yes" : "no"; // Slightly biased towards yes for drama
-        game.trialVotes.set(bot.userId, vote);
-        (game as any).appendPublicActivityLog(vote === "yes" ? "누군가가 찬성에 투표했습니다." : "누군가가 반대에 투표했습니다.");
-        changed = true;
-        console.log(`[web-practice] NPC ${bot.userId} -> trial voted ${vote}`);
-      }
+  const phaseWatcher = setInterval(() => {
+    const nextPhaseKey = currentPracticePhaseKey(game);
+    if (nextPhaseKey === lastPhaseKey) {
+      return;
     }
+    lastPhaseKey = nextPhaseKey;
+    schedulePracticeBots(definition.id, game, handles);
+  }, 400);
 
-    if (changed) {
-      game.bumpStateVersion();
-    }
-  }, 1800);
-
-  handles.push(autoBotTimer);
+  handles.push(phaseWatcher);
   return handles;
+}
+
+function currentPracticePhaseKey(game: PracticeGame): string {
+  const token = game.phaseContext?.token ?? -1;
+  return `${game.phase}:${token}:${game.currentTrialTargetId ?? ""}`;
+}
+
+function schedulePracticeBots(
+  scenarioId: string,
+  game: PracticeGame,
+  handles: NodeJS.Timeout[],
+): void {
+  const phase = game.phase;
+  const token = game.phaseContext?.token ?? -1;
+  if (phase === "ended") {
+    return;
+  }
+
+  if (phase === "vote") {
+    schedulePracticeVotes(scenarioId, game, token, handles);
+    return;
+  }
+
+  if (phase === "trial") {
+    schedulePracticeTrialVotes(scenarioId, game, token, handles);
+    return;
+  }
+
+  if (phase === "discussion" || phase === "night") {
+    schedulePracticeChats(scenarioId, game, token, handles);
+  }
+}
+
+function schedulePracticeVotes(
+  scenarioId: string,
+  game: PracticeGame,
+  token: number,
+  handles: NodeJS.Timeout[],
+): void {
+  const voters = shuffle(
+    Array.from(game.players.values()).filter(
+      (player) =>
+        player.alive &&
+        player.userId !== PRACTICE_VIEWER_ID &&
+        !game.bulliedToday.has(player.userId) &&
+        !game.dayVotes.has(player.userId),
+    ),
+  );
+  if (voters.length === 0) {
+    return;
+  }
+
+  const delays = buildSortedRandomDelays(voters.length, resolvePhaseWindowMs(game, 1_200, 8_000));
+  voters.forEach((player, index) => {
+    scheduleGuardedPracticeAction(game, handles, "vote", token, delays[index], () => {
+      if (game.dayVotes.has(player.userId)) {
+        return;
+      }
+      const targets = shuffle(
+        Array.from(game.players.values())
+          .filter((candidate) => candidate.alive && candidate.userId !== player.userId)
+          .map((candidate) => candidate.userId),
+      );
+      const targetId = targets[0] ?? player.userId;
+      game.dayVotes.set(player.userId, targetId);
+      (game as any).appendPublicActivityLog(`누군가가 ${game.getPlayerOrThrow(targetId).displayName} 님에게 투표했습니다.`);
+      console.log(`[web-practice] ${scenarioId} npc ${player.userId} -> vote ${targetId}`);
+    });
+  });
+}
+
+function schedulePracticeTrialVotes(
+  scenarioId: string,
+  game: PracticeGame,
+  token: number,
+  handles: NodeJS.Timeout[],
+): void {
+  const voters = shuffle(
+    Array.from(game.players.values()).filter(
+      (player) =>
+        player.alive &&
+        player.userId !== PRACTICE_VIEWER_ID &&
+        player.userId !== game.currentTrialTargetId &&
+        !game.bulliedToday.has(player.userId) &&
+        !game.trialVotes.has(player.userId),
+    ),
+  );
+  if (voters.length === 0) {
+    return;
+  }
+
+  const delays = buildSortedRandomDelays(voters.length, resolvePhaseWindowMs(game, 1_200, 8_000));
+  voters.forEach((player, index) => {
+    scheduleGuardedPracticeAction(game, handles, "trial", token, delays[index], () => {
+      if (game.trialVotes.has(player.userId)) {
+        return;
+      }
+      const vote = Math.random() < 0.6 ? "yes" : "no";
+      game.trialVotes.set(player.userId, vote);
+      (game as any).appendPublicActivityLog(vote === "yes" ? "누군가가 찬성에 투표했습니다." : "누군가가 반대에 투표했습니다.");
+      console.log(`[web-practice] ${scenarioId} npc ${player.userId} -> trial ${vote}`);
+    });
+  });
+}
+
+function schedulePracticeChats(
+  scenarioId: string,
+  game: PracticeGame,
+  token: number,
+  handles: NodeJS.Timeout[],
+): void {
+  const plans: { channel: "public" | "mafia" | "graveyard"; speakers: string[]; lines: string[] }[] = [];
+
+  if (game.phase === "discussion") {
+    const speakers = Array.from(game.players.values())
+      .filter((player) => player.alive && player.userId !== PRACTICE_VIEWER_ID && game.canWriteChat(player.userId, "public"))
+      .map((player) => player.userId);
+    if (speakers.length > 0) {
+      plans.push({ channel: "public", speakers, lines: PUBLIC_CHAT_LINES });
+    }
+  }
+
+  if (game.phase === "night") {
+    const mafiaSpeakers = Array.from(game.players.values())
+      .filter((player) => player.userId !== PRACTICE_VIEWER_ID && game.canWriteChat(player.userId, "mafia"))
+      .map((player) => player.userId);
+    if (mafiaSpeakers.length > 0) {
+      plans.push({ channel: "mafia", speakers: mafiaSpeakers, lines: MAFIA_CHAT_LINES });
+    }
+
+    const graveyardSpeakers = Array.from(game.players.values())
+      .filter((player) => player.userId !== PRACTICE_VIEWER_ID && game.canWriteChat(player.userId, "graveyard"))
+      .map((player) => player.userId);
+    if (graveyardSpeakers.length > 0) {
+      plans.push({ channel: "graveyard", speakers: graveyardSpeakers, lines: GRAVEYARD_CHAT_LINES });
+    }
+  }
+
+  plans.forEach((plan) => {
+    const maxMessages = Math.min(plan.speakers.length, plan.channel === "public" ? 2 : 1);
+    if (maxMessages <= 0) {
+      return;
+    }
+    const speakers = shuffle([...plan.speakers]).slice(0, maxMessages);
+    const delays = buildSortedRandomDelays(maxMessages, resolvePhaseWindowMs(game, 900, 6_000));
+    speakers.forEach((speakerId, index) => {
+      const content = plan.lines[Math.floor(Math.random() * plan.lines.length)];
+      scheduleGuardedPracticeAction(game, handles, game.phase, token, delays[index], () => {
+        if (!game.canWriteChat(speakerId, plan.channel)) {
+          return;
+        }
+        game.sendChat(speakerId, plan.channel, content);
+        console.log(`[web-practice] ${scenarioId} npc ${speakerId} -> chat ${plan.channel}`);
+      });
+    });
+  });
+}
+
+function scheduleGuardedPracticeAction(
+  game: PracticeGame,
+  handles: NodeJS.Timeout[],
+  phase: PracticeGame["phase"],
+  token: number,
+  delayMs: number,
+  run: () => void,
+): void {
+  handles.push(
+    setTimeout(() => {
+      if (game.phase !== phase || (game.phaseContext?.token ?? -1) !== token) {
+        return;
+      }
+      try {
+        run();
+      } catch (error) {
+        console.error("[web-practice] npc action failed", error);
+      }
+    }, delayMs),
+  );
+}
+
+function resolvePhaseWindowMs(game: PracticeGame, minimumMs: number, maximumMs: number): number {
+  const deadlineAt = game.phaseContext?.deadlineAt ?? Date.now() + maximumMs;
+  const remaining = Math.max(0, deadlineAt - Date.now() - 900);
+  return Math.max(minimumMs, Math.min(maximumMs, remaining));
+}
+
+function buildSortedRandomDelays(count: number, maxWindowMs: number): number[] {
+  const upperBound = Math.max(1_000, maxWindowMs);
+  const delays = Array.from({ length: count }, () => 600 + Math.floor(Math.random() * upperBound));
+  delays.sort((left, right) => left - right);
+  return delays;
+}
+
+function shuffle<T>(items: T[]): T[] {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
+  }
+  return items;
 }
 
 function readInteger(name: string, fallback: number): number {

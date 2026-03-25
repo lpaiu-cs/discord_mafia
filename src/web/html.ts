@@ -401,7 +401,30 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto;
         gap: 9px;
-        height: 420px;
+        height: min(480px, calc(100dvh - 200px));
+      }
+
+      body.keyboard-open .chat-shell {
+        height: min(480px, calc(100dvh - 120px));
+      }
+
+      body.keyboard-open .shell {
+        padding-bottom: 24px !important;
+      }
+      body.keyboard-open .mobile-dock {
+        display: none !important;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, ::before, ::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+        .mobile-dock, .phase-overlay {
+          backdrop-filter: none !important;
+          background: rgba(11, 11, 12, 0.98) !important;
+        }
       }
 
       .chat-row {
@@ -492,16 +515,17 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       .chat-bubble--system {
         max-width: min(88%, 540px);
         margin: 8px 0;
-        padding: 6px 16px;
+        padding: 6px 16px 6px 30px;
         border: 1px solid rgba(255, 210, 120, 0.25);
-        border-radius: 12px;
+        border-radius: 4px;
+        border-left: 3px solid var(--accent);
         background: rgba(30, 25, 20, 0.75);
         color: #ffe4b5;
         font-size: 0.82rem;
         font-weight: 700;
         font-style: italic;
         line-height: 1.45;
-        text-align: center;
+        text-align: left;
         box-shadow: 0 4px 16px rgba(0,0,0,0.5);
       }
 
@@ -868,6 +892,14 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         font-size: 0.9rem;
       }
 
+      [data-live-deadline] {
+        display: inline-block;
+        min-width: 3.5rem;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+      }
+
       .timer-bar {
         position: relative;
         width: 40px;
@@ -1188,14 +1220,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         color: #fff;
       }
 
-      /* Phase 4: System message left bar */
-      .chat-bubble--system {
-        position: relative;
-        padding-left: 14px;
-        text-align: left;
-        border-left: 3px solid var(--accent);
-        border-radius: 4px;
-      }
+      /* Phase 4: System message left bar (Merged into original) */
 
       /* Phase 4: Secret chat channel themes */
       .secret-chat--mafia .panel-head h3 { color: #ff7171; }
@@ -1628,7 +1653,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         }
       };
 
-      setTimeout(() => {
+      let audioPreloaded = false;
+      function preloadAudio() {
+        if (audioPreloaded) return;
+        audioPreloaded = true;
         AudioManager.load("/resource/audio/bgm_day.wav");
         AudioManager.load("/resource/audio/bgm_night.wav");
         AudioManager.load("/resource/audio/bgm_vote.wav");
@@ -1636,9 +1664,10 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         AudioManager.load("/resource/audio/click.wav");
         AudioManager.load("/resource/audio/action.wav");
         AudioManager.load("/resource/audio/tick.wav");
-      }, 500);
+      }
 
       document.body.addEventListener("pointerdown", (e) => {
+         preloadAudio();
          if (e.target.closest('button, .action-grid-cell, .memo-role-cell, .dock-button')) {
             AudioManager.playSfx("/resource/audio/click.wav");
          }
@@ -1674,11 +1703,33 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
       let sinceVersion = initialState.version;
       let pollTimer = null;
       let deadlineTimer = null;
+
+      function schedulePolling() {
+         if (pollTimer) clearTimeout(pollTimer);
+         const isWsOpen = ws && ws.readyState === WebSocket.OPEN;
+         const interval = isWsOpen ? 15000 : (document.hidden ? 8000 : 3000);
+         pollTimer = setTimeout(async () => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+               await refreshState();
+            }
+            schedulePolling();
+         }, interval);
+      }
       let syncedServerNowMs = initialState.serverNow;
       let syncedClientPerfMs = performance.now();
       let activeSection = "actions";
       const chatDrafts = Object.create(null);
       const pendingAutoscrollChannels = new Set();
+
+
+      function updateHtml(selector, html, parent = document) {
+          const el = typeof selector === 'string' ? parent.querySelector(selector) : selector;
+          if (el && el.innerHTML !== html) el.innerHTML = html;
+      }
+      function updateClass(selector, className, parent = document) {
+          const el = typeof selector === 'string' ? parent.querySelector(selector) : selector;
+          if (el && el.className !== className) el.className = className;
+      }
 
       function escapeHtml(value) {
         return String(value)
@@ -1971,18 +2022,17 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
         const heroTitle = document.getElementById("hero-title");
         heroTitle.textContent = state.viewer.displayName;
         heroTitle.className = nicknameClassForUser(state, state.viewer.userId);
-        document.getElementById("hero-subtitle").textContent = \`게임 ID \${state.room.gameId}\`;
+        document.getElementById("hero-subtitle").textContent = `게임 ID ${state.room.gameId}`;
 
         const heroEl = document.querySelector(".hero");
-        heroEl.className = "hero hero--" + phase;
+        updateClass(heroEl, "hero hero--" + phase);
 
-        document.getElementById("hero-meta").innerHTML = [
-          \`<div class="phase-chip phase-chip--\${phase}">\${escapeHtml(phaseDisplayText(state))}</div>\`,
-          \`<div class="meta-chip role-chip role-chip--\${team}"><strong>\${escapeHtml(state.viewer.roleLabel)}</strong></div>\`,
-          \`<div class="timer-chip"><strong data-live-deadline>\${escapeHtml(formatDeadline(state.room.deadlineAt))}</strong><div class="timer-bar" data-timer-total="\${state.room.deadlineAt ? 300 : 0}"><div class="timer-bar-fill" data-live-timer-fill></div></div></div>\`,
-        ].join("");
+        updateHtml(document.getElementById("hero-meta"), [
+          `<div class="phase-chip phase-chip--${phase}">${escapeHtml(phaseDisplayText(state))}</div>`,
+          `<div class="meta-chip role-chip role-chip--${team}"><strong>${escapeHtml(state.viewer.roleLabel)}</strong></div>`,
+          `<div class="timer-chip"><strong data-live-deadline>${escapeHtml(formatDeadline(state.room.deadlineAt))}</strong><div class="timer-bar" data-timer-total="${state.room.deadlineAt ? 300 : 0}"><div class="timer-bar-fill" data-live-timer-fill></div></div></div>`,
+        ].join(""));
       }
-
       let chatSeenCount = { public: 0, secret: 0, logs: 0 };
       function renderMobileDock(state) {
         if (activeSection === "public") chatSeenCount.public = state.publicChat.messages.length;
@@ -2001,7 +2051,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
         const actionCount = actionableControlCount(state);
 
-        document.getElementById("mobile-dock-root").innerHTML = [
+        updateHtml(document.getElementById("mobile-dock-root"), [
           '<nav class="mobile-dock">',
           dockSections
             .map((section) => [
@@ -2666,6 +2716,7 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
                wsReconnectTimer = null;
             }
             refreshState();
+            schedulePolling();
          };
          ws.onmessage = (event) => {
             try {
@@ -2713,12 +2764,25 @@ export function renderDashboardPage(initialState: DashboardStatePayload, csrfTok
 
       document.addEventListener("visibilitychange", () => {
          if (!document.hidden && !ws) connectWebSocket();
+         schedulePolling();
       });
+
+      if (window.visualViewport) {
+         const initialHeight = window.visualViewport.height;
+         window.visualViewport.addEventListener("resize", () => {
+            if (window.visualViewport.height < initialHeight * 0.85) {
+               document.body.classList.add("keyboard-open");
+            } else {
+               document.body.classList.remove("keyboard-open");
+            }
+         });
+      }
 
       activeSection = pickDefaultSection(currentState);
       syncServerClock(initialState.serverNow);
       render(currentState);
       connectWebSocket();
+      schedulePolling();
       scheduleDeadlineTicker();
     </script>
   </body>

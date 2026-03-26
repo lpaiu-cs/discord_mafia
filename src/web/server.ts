@@ -179,7 +179,7 @@ export class DashboardServer {
       let contentType = "application/octet-stream";
       if (filename.endsWith(".svg")) contentType = "image/svg+xml";
       else if (filename.endsWith(".png")) contentType = "image/png";
-      else if (filename.endsWith(".wav")) contentType = "audio/wav";
+      else if (filename.endsWith(".mp3")) contentType = "audio/mpeg";
       response.setHeader("content-type", contentType);
       response.setHeader("cache-control", "public, max-age=86400, immutable");
       response.end(data);

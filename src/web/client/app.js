@@ -141,13 +141,13 @@ const initialState = JSON.parse(document.getElementById("initial-state").textCon
       function preloadAudio() {
         if (audioPreloaded) return;
         audioPreloaded = true;
-        AudioManager.load("/resource/audio/bgm_day.wav");
-        AudioManager.load("/resource/audio/bgm_night.wav");
-        AudioManager.load("/resource/audio/bgm_vote.wav");
-        AudioManager.load("/resource/audio/fanfare.wav");
-        AudioManager.load("/resource/audio/click.wav");
-        AudioManager.load("/resource/audio/action.wav");
-        AudioManager.load("/resource/audio/tick.wav");
+        AudioManager.load("/resource/audio/bgm_day.mp3");
+        AudioManager.load("/resource/audio/bgm_night.mp3");
+        AudioManager.load("/resource/audio/bgm_vote.mp3");
+        AudioManager.load("/resource/audio/fanfare.mp3");
+        AudioManager.load("/resource/audio/click.mp3");
+        AudioManager.load("/resource/audio/action.mp3");
+        AudioManager.load("/resource/audio/tick.mp3");
       }
 
       let pointerRenderLock = false;
@@ -200,7 +200,7 @@ const initialState = JSON.parse(document.getElementById("initial-state").textCon
          preloadAudio();
          const target = event.target;
          if (target instanceof Element && target.closest('button, .action-grid-cell, .memo-role-cell, .dock-button')) {
-            AudioManager.playSfx("/resource/audio/click.wav");
+            AudioManager.playSfx("/resource/audio/click.mp3");
          }
       }, { capture: true });
       document.addEventListener("pointerup", releaseRenderAfterPointer, true);
@@ -335,7 +335,7 @@ const initialState = JSON.parse(document.getElementById("initial-state").textCon
         /* Timer chip urgency and tick sound */
         if (remainingSec <= 10 && remainingSec > 0 && window.lastTickSec !== remainingSec) {
            window.lastTickSec = remainingSec;
-           try { AudioManager.playSfx("/resource/audio/tick.wav"); } catch(e){}
+           try { AudioManager.playSfx("/resource/audio/tick.mp3"); } catch(e){}
         }
 
         document.querySelectorAll(".timer-chip").forEach((chip) => {
@@ -1156,10 +1156,10 @@ function actionControl(control) {
         if (currentPhaseStr !== state.room.phase) {
           currentPhaseStr = state.room.phase;
           
-          let bgm = "/resource/audio/bgm_day.wav";
-          if (currentPhaseStr === "night") bgm = "/resource/audio/bgm_night.wav";
-          if (currentPhaseStr === "vote" || currentPhaseStr === "trial" || currentPhaseStr === "defense") bgm = "/resource/audio/bgm_vote.wav";
-          if (currentPhaseStr === "ended") bgm = "/resource/audio/fanfare.wav";
+          let bgm = "/resource/audio/bgm_day.mp3";
+          if (currentPhaseStr === "night") bgm = "/resource/audio/bgm_night.mp3";
+          if (currentPhaseStr === "vote" || currentPhaseStr === "trial" || currentPhaseStr === "defense") bgm = "/resource/audio/bgm_vote.mp3";
+          if (currentPhaseStr === "ended") bgm = "/resource/audio/fanfare.mp3";
           AudioManager.playBgm(bgm);
           
           let title = "아침이 밝았습니다";
@@ -1256,7 +1256,7 @@ function actionControl(control) {
               targetId: data.get("targetId"),
             });
             showToast("행동을 제출했습니다", "success");
-            AudioManager.playSfx("/resource/audio/action.wav");
+            AudioManager.playSfx("/resource/audio/action.mp3");
             await refreshState();
           }
 

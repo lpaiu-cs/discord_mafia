@@ -1,13 +1,15 @@
 import { mkdir, copyFile, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-const repoRoot = process.cwd();
-const configPath = resolve(repoRoot, "src/web/client/tsconfig.json");
-const distClientDir = resolve(repoRoot, "dist/web/client");
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const moduleRoot = resolve(scriptDir, "..");
+const configPath = resolve(moduleRoot, "src/web/client/tsconfig.json");
+const distClientDir = resolve(moduleRoot, "dist/web/client");
 
 await rm(distClientDir, { recursive: true, force: true });
 
@@ -46,12 +48,12 @@ if (emitResult.emitSkipped) {
 }
 
 await mkdir(distClientDir, { recursive: true });
-await copyFile(resolve(repoRoot, "src/web/client/app.css"), resolve(distClientDir, "app.css"));
+await copyFile(resolve(moduleRoot, "src/web/client/app.css"), resolve(distClientDir, "app.css"));
 
 function reportDiagnostics(diagnostics) {
   const host = {
     getCanonicalFileName: (fileName) => fileName,
-    getCurrentDirectory: () => repoRoot,
+    getCurrentDirectory: () => moduleRoot,
     getNewLine: () => "\n",
   };
   const output = ts.formatDiagnosticsWithColorAndContext(diagnostics, host);

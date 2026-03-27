@@ -5,9 +5,10 @@ import { sendJson } from "./utils";
 
 const transpiledClientModuleCache = new Map<string, { mtimeMs: number; outputText: string }>();
 let typeScriptCompilerPromise: Promise<any | null> | null = null;
+const moduleRoot = resolvePath(__dirname, "../../../");
 
 export async function handleResource(ctx: RouteContext, filename: string): Promise<void> {
-  const resourceDir = resolvePath(__dirname, "../../../resource");
+  const resourceDir = resolvePath(moduleRoot, "resource");
   const filePath = resolvePath(resourceDir, filename);
   if (!filePath.startsWith(resourceDir)) {
     sendJson(ctx.response, 403, { error: "접근이 거부되었습니다." });
@@ -41,11 +42,11 @@ export async function handleClientAsset(ctx: RouteContext, filename: string): Pr
     }
   }
 
-  // __dirname 은 src/web/routes/
+  // __dirname 은 mafia/src/web/routes/ 또는 mafia/dist/web/routes/
   const candidateDirs = [
     resolvePath(__dirname, "../client"),
-    resolvePath(process.cwd(), "src/web/client"),
-    resolvePath(process.cwd(), "dist/web/client"),
+    resolvePath(moduleRoot, "src/web/client"),
+    resolvePath(moduleRoot, "dist/web/client"),
   ];
 
   for (const clientDir of candidateDirs) {
@@ -74,7 +75,7 @@ export async function handleClientAsset(ctx: RouteContext, filename: string): Pr
 }
 
 async function transpileClientModule(filename: string): Promise<string | null> {
-  const sourcePath = resolvePath(process.cwd(), "src/web/client", filename.replace(/\.js$/u, ".ts"));
+  const sourcePath = resolvePath(moduleRoot, "src/web/client", filename.replace(/\.js$/u, ".ts"));
 
   try {
     const sourceStat = await stat(sourcePath);

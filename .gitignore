@@ -3,6 +3,10 @@ __pycache__/
 
 node_modules
 dist
+mafia/dist
+liar/dist
+mafia/node_modules
+liar/node_modules
 
 package-lock.json
 

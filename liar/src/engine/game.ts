@@ -4,11 +4,14 @@ import {
   LiarClue,
   LiarClueSubmissionResult,
   LiarKeywordView,
+  LiarMode,
   LiarPhase,
   LiarPlayer,
   LiarResult,
   LiarVote,
   LiarVoteResolution,
+  liarModeLabel,
+  liarModeSummary,
 } from "./model";
 
 const MIN_PLAYERS = 4;
@@ -44,6 +47,12 @@ function shuffle<T>(items: readonly T[], random: RandomSource): T[] {
   return copy;
 }
 
+function assertLiarMode(mode: string): asserts mode is LiarMode {
+  if (mode !== "modeA" && mode !== "modeB") {
+    throw new Error("지원하지 않는 라이어 규칙 모드입니다.");
+  }
+}
+
 export class LiarGame {
   readonly id = randomUUID();
   readonly guildId: string;
@@ -56,9 +65,11 @@ export class LiarGame {
   readonly votes = new Map<string, LiarVote>();
   readonly createdAt = Date.now();
   categoryId: string;
+  mode: LiarMode;
   statusMessageId: string | null = null;
   liarId: string | null = null;
   secretWord: string | null = null;
+  liarAssignedWord: string | null = null;
   turnOrder: string[] = [];
   currentTurnIndex = 0;
   accusedUserId: string | null = null;
@@ -74,12 +85,16 @@ export class LiarGame {
     hostId: string;
     hostDisplayName: string;
     categoryId?: string;
+    mode?: LiarMode;
   }) {
     this.guildId = params.guildId;
     this.guildName = params.guildName ?? "";
     this.channelId = params.channelId;
     this.hostId = params.hostId;
     this.categoryId = params.categoryId ?? getDefaultLiarCategory(params.guildId).id;
+    const resolvedMode = params.mode ?? "modeA";
+    assertLiarMode(resolvedMode);
+    this.mode = resolvedMode;
     this.players.set(params.hostId, {
       userId: params.hostId,
       displayName: params.hostDisplayName,
@@ -171,6 +186,28 @@ export class LiarGame {
     this.categoryId = categoryId;
   }
 
+  setMode(mode: LiarMode): void {
+    if (this.phase !== "lobby") {
+      throw new Error("규칙 모드는 로비에서만 바꿀 수 있습니다.");
+    }
+
+    assertLiarMode(mode);
+    this.mode = mode;
+  }
+
+  getStartConfigurationError(): string | null {
+    if (this.mode !== "modeB") {
+      return null;
+    }
+
+    const distinctWords = new Set(this.category.words.map((word) => normalizeWord(word)));
+    if (distinctWords.size < 2) {
+      return "모드B 는 현재 카테고리에 서로 다른 제시어가 최소 2개 이상 있어야 시작할 수 있습니다.";
+    }
+
+    return null;
+  }
+
   start(random: RandomSource = Math.random, options: { excludedWords?: readonly string[] } = {}): void {
     if (this.phase !== "lobby") {
       throw new Error("이미 시작된 게임입니다.");
@@ -180,14 +217,21 @@ export class LiarGame {
       throw new Error(`라이어게임은 ${MIN_PLAYERS}명 이상 ${MAX_PLAYERS}명 이하로만 시작할 수 있습니다.`);
     }
 
+    const startConfigurationError = this.getStartConfigurationError();
+    if (startConfigurationError) {
+      throw new Error(startConfigurationError);
+    }
+
     const participants = [...this.players.values()].sort((left, right) => left.joinedAt - right.joinedAt);
     const liarIndex = Math.floor(random() * participants.length);
     const excludedWords = new Set((options.excludedWords ?? []).map((word) => normalizeWord(word)));
     const candidateWords = this.category.words.filter((word) => !excludedWords.has(normalizeWord(word)));
     const wordPool = candidateWords.length > 0 ? candidateWords : [...this.category.words];
     const keywordIndex = Math.floor(random() * wordPool.length);
+    const secretWord = wordPool[keywordIndex];
     this.liarId = participants[liarIndex].userId;
-    this.secretWord = wordPool[keywordIndex];
+    this.secretWord = secretWord;
+    this.liarAssignedWord = this.mode === "modeB" ? this.pickLiarAssignedWord(secretWord, random) : null;
     this.turnOrder = shuffle(participants.map((player) => player.userId), random);
     this.phase = "clue";
     this.currentTurnIndex = 0;
@@ -210,17 +254,32 @@ export class LiarGame {
     }
 
     if (userId === this.liarId) {
+      if (this.mode === "modeB" && this.liarAssignedWord) {
+        return {
+          mode: this.mode,
+          categoryLabel: this.category.label,
+          isLiar: true,
+          knowsLiarRole: false,
+          keyword: this.liarAssignedWord,
+          message: `카테고리: ${this.category.label}\n제시어: ${this.liarAssignedWord}`,
+        };
+      }
+
       return {
+        mode: this.mode,
         categoryLabel: this.category.label,
         isLiar: true,
+        knowsLiarRole: true,
         keyword: null,
-        message: `당신은 라이어입니다. 카테고리는 ${this.category.label}이며 제시어는 공개되지 않습니다.`,
+        message: `당신은 라이어입니다. 현재 규칙은 ${liarModeLabel(this.mode)} 이며 카테고리는 ${this.category.label} 입니다. 제시어는 공개되지 않습니다.`,
       };
     }
 
     return {
+      mode: this.mode,
       categoryLabel: this.category.label,
       isLiar: false,
+      knowsLiarRole: false,
       keyword: this.secretWord,
       message: `카테고리: ${this.category.label}\n제시어: ${this.secretWord}`,
     };
@@ -454,9 +513,18 @@ export class LiarGame {
   describeStatus(): string {
     const header = [
       `라이어게임 상태: ${phaseLabel(this.phase)}`,
+      `규칙 모드: ${liarModeLabel(this.mode)}`,
       `카테고리: ${this.category.label}`,
       `참가자(${this.players.size}명): ${this.describeParticipants() || "없음"}`,
     ];
+
+    if (this.phase === "lobby") {
+      header.push(liarModeSummary(this.mode));
+      const startConfigurationError = this.getStartConfigurationError();
+      if (startConfigurationError) {
+        header.push(`시작 불가: ${startConfigurationError}`);
+      }
+    }
 
     if (this.phase === "clue") {
       const speaker = this.getCurrentSpeaker();
@@ -549,6 +617,16 @@ export class LiarGame {
       phase: this.phase,
       result,
     };
+  }
+
+  private pickLiarAssignedWord(secretWord: string, random: RandomSource): string {
+    const decoyPool = this.category.words.filter((word) => normalizeWord(word) !== normalizeWord(secretWord));
+    if (decoyPool.length === 0) {
+      throw new Error("모드B 를 시작하려면 카테고리에 서로 다른 제시어가 최소 2개 이상 있어야 합니다.");
+    }
+
+    const decoyIndex = Math.floor(random() * decoyPool.length);
+    return decoyPool[decoyIndex];
   }
 }
 

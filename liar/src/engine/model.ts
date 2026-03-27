@@ -2,6 +2,8 @@ export type LiarPhase = "lobby" | "clue" | "discussion" | "voting" | "guess" | "
 
 export type LiarWinner = "citizens" | "liar" | "cancelled";
 
+export type LiarMode = "modeA" | "modeB";
+
 export interface LiarPlayer {
   readonly userId: string;
   displayName: string;
@@ -30,8 +32,10 @@ export interface LiarResult {
 }
 
 export interface LiarKeywordView {
+  readonly mode: LiarMode;
   readonly categoryLabel: string;
   readonly isLiar: boolean;
+  readonly knowsLiarRole: boolean;
   readonly keyword: string | null;
   readonly message: string;
 }
@@ -46,4 +50,26 @@ export interface LiarVoteResolution {
   readonly tiedUserIds: readonly string[];
   readonly phase: LiarPhase;
   readonly result: LiarResult | null;
+}
+
+export function liarModeLabel(mode: LiarMode): string {
+  switch (mode) {
+    case "modeA":
+      return "모드A";
+    case "modeB":
+      return "모드B";
+    default:
+      return mode;
+  }
+}
+
+export function liarModeSummary(mode: LiarMode): string {
+  switch (mode) {
+    case "modeA":
+      return "라이어 공개형: 라이어는 자신이 라이어임을 알고 제시어를 받지 않습니다.";
+    case "modeB":
+      return "오답 제시어형: 라이어는 자신이 라이어인지 모른 채 혼자 다른 제시어를 받습니다.";
+    default:
+      return mode;
+  }
 }

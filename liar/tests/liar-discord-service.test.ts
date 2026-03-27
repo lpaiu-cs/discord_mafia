@@ -73,6 +73,29 @@ function createFakeCommandInteraction(commandName: string, overrides: Partial<an
   return { interaction, replies };
 }
 
+function createFakeSelectInteraction(customId: string, overrides: Partial<any> = {}) {
+  const replies: Array<{ content: string; flags?: number }> = [];
+  const interaction = {
+    customId,
+    guildId: "guild-1",
+    channelId: "channel-1",
+    channel: overrides.channel,
+    user: { id: "host", username: "방장" },
+    values: [],
+    deferred: false,
+    replied: false,
+    async reply(payload: { content: string; flags?: number }) {
+      replies.push(payload);
+    },
+    async followUp(payload: { content: string; flags?: number }) {
+      replies.push(payload);
+    },
+    ...overrides,
+  };
+
+  return { interaction, replies };
+}
+
 function createServiceWithGame() {
   const service = new LiarDiscordService() as any;
   const game = service.registry.create({
@@ -249,6 +272,23 @@ test("종료된 게임은 onGameEnded 콜백을 한 번만 호출한다", async 
   assert.deepEqual(endedGames, [game.id]);
 });
 
+test("로비의 규칙 모드 선택 메뉴로 modeB 를 고를 수 있다", async () => {
+  const { service, game } = createServiceWithGame();
+  const channel = createFakeChannel();
+  const client = { channels: { fetch: async () => channel } } as any;
+  const { interaction, replies } = createFakeSelectInteraction(`liar-mode:${game.id}`, {
+    channel,
+    values: ["modeB"],
+  });
+
+  const handled = await service.handleSelect(client, interaction as any);
+
+  assert.equal(handled, true);
+  assert.equal(game.mode, "modeB");
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /모드B/);
+});
+
 test("/liar create 는 새 로비를 만들고 상태 메시지를 띄운다", async () => {
   const service = new LiarDiscordService();
   const channel = createFakeChannel();
@@ -308,6 +348,7 @@ test("/liar stats 는 저장된 전적 요약을 ephemeral 로 보여준다", as
       ],
       recentMatches: [
         {
+          mode: "modeA",
           guildName: "테스트 길드",
           categoryLabel: "음식",
           status: "completed",

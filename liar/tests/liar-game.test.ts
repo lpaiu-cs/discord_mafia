@@ -33,7 +33,7 @@ test("시작하면 라이어와 제시어, 설명 순서가 정해진다", () =>
   assert.equal(game.getCurrentSpeaker()?.userId, game.turnOrder[0]);
 });
 
-test("참가자는 /제시어 로 자기 정보만 확인한다", () => {
+test("모드A 에서는 라이어가 자신이 라이어인 것을 알고 제시어를 받지 않는다", () => {
   const game = createGame();
   seedPlayers(game);
 
@@ -44,9 +44,38 @@ test("참가자는 /제시어 로 자기 정보만 확인한다", () => {
   const citizenView = game.getKeywordView("p1");
 
   assert.equal(liarView.isLiar, true);
+  assert.equal(liarView.mode, "modeA");
+  assert.equal(liarView.knowsLiarRole, true);
   assert.equal(liarView.keyword, null);
   assert.match(liarView.message, /당신은 라이어입니다/);
   assert.equal(citizenView.isLiar, false);
+  assert.equal(citizenView.knowsLiarRole, false);
+  assert.equal(citizenView.keyword, "김치찌개");
+});
+
+test("모드B 에서는 라이어가 오답 제시어를 받고 자신이 라이어인지 모른다", () => {
+  const game = new LiarGame({
+    guildId: "guild-1",
+    guildName: "테스트 길드",
+    channelId: "channel-1",
+    hostId: "host",
+    hostDisplayName: "방장",
+    categoryId: "food",
+    mode: "modeB",
+  });
+  seedPlayers(game);
+
+  const rolls = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  game.start(() => rolls.shift() ?? 0);
+
+  const liarView = game.getKeywordView("host");
+  const citizenView = game.getKeywordView("p1");
+
+  assert.equal(liarView.isLiar, true);
+  assert.equal(liarView.mode, "modeB");
+  assert.equal(liarView.knowsLiarRole, false);
+  assert.equal(liarView.keyword, "비빔밥");
+  assert.doesNotMatch(liarView.message, /당신은 라이어입니다/);
   assert.equal(citizenView.keyword, "김치찌개");
 });
 

@@ -88,9 +88,11 @@ create table if not exists liar_matches (
   id bigserial primary key,
   external_game_id text not null unique,
   discord_guild_id text not null references guilds(discord_guild_id),
+  mode text not null default 'modeA',
   category_id text not null,
   category_label text not null,
   secret_word text,
+  liar_assigned_word text,
   status text not null check (status in ('completed', 'cancelled')),
   winner text check (winner in ('liar', 'citizens')),
   ended_reason text,
@@ -127,6 +129,14 @@ create table if not exists liar_player_lifetime_stats (
   citizen_wins integer not null,
   updated_at timestamptz not null
 );
+
+alter table liar_matches add column if not exists mode text;
+update liar_matches set mode = coalesce(mode, 'modeA') where mode is null;
+alter table liar_matches alter column mode set default 'modeA';
+alter table liar_matches alter column mode set not null;
+alter table liar_matches drop constraint if exists liar_matches_mode_check;
+alter table liar_matches add constraint liar_matches_mode_check check (mode in ('modeA', 'modeB'));
+alter table liar_matches add column if not exists liar_assigned_word text;
 
 create index if not exists idx_matches_guild_ended_at on matches (discord_guild_id, ended_at desc);
 create index if not exists idx_match_players_user on match_players (discord_user_id, match_id desc);

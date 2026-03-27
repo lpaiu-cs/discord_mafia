@@ -181,6 +181,7 @@ export class PostgresGameStatsStore implements GameStatsStore {
         `
           select
             lm.external_game_id,
+            lm.mode,
             g.latest_name as guild_name,
             lm.category_label,
             lm.status,
@@ -371,6 +372,7 @@ interface PlayerRecentMatchRow {
 
 interface LiarRecentMatchRow {
   external_game_id: string;
+  mode: LiarRecentMatch["mode"];
   guild_name: string | null;
   category_label: string;
   status: LiarRecentMatch["status"];
@@ -439,6 +441,7 @@ function mapRecentMatchRow(row: PlayerRecentMatchRow): PlayerRecentMatch {
 function mapLiarRecentMatchRow(row: LiarRecentMatchRow): LiarRecentMatch {
   return {
     externalGameId: row.external_game_id,
+    mode: row.mode,
     guildName: row.guild_name,
     categoryLabel: row.category_label,
     status: row.status,
@@ -678,9 +681,11 @@ async function upsertLiarMatch(client: PoolClient, record: RecordedLiarMatch): P
       insert into liar_matches (
         external_game_id,
         discord_guild_id,
+        mode,
         category_id,
         category_label,
         secret_word,
+        liar_assigned_word,
         status,
         winner,
         ended_reason,
@@ -691,12 +696,14 @@ async function upsertLiarMatch(client: PoolClient, record: RecordedLiarMatch): P
         started_at,
         ended_at
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       on conflict (external_game_id) do update
       set discord_guild_id = excluded.discord_guild_id,
+          mode = excluded.mode,
           category_id = excluded.category_id,
           category_label = excluded.category_label,
           secret_word = excluded.secret_word,
+          liar_assigned_word = excluded.liar_assigned_word,
           status = excluded.status,
           winner = excluded.winner,
           ended_reason = excluded.ended_reason,
@@ -711,9 +718,11 @@ async function upsertLiarMatch(client: PoolClient, record: RecordedLiarMatch): P
     [
       record.externalGameId,
       record.discordGuildId,
+      record.mode,
       record.categoryId,
       record.categoryLabel,
       record.secretWord,
+      record.liarAssignedWord,
       record.status,
       record.winner,
       record.endedReason,

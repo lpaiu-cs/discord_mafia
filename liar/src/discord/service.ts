@@ -17,7 +17,7 @@ import {
 import { getLiarCategories } from "../content/categories";
 import { LiarGame } from "../engine/game";
 import { InMemoryLiarGameRegistry } from "../engine/registry";
-import { LiarResult, LiarVoteResolution } from "../engine/model";
+import { LiarMode, LiarResult, LiarVoteResolution, liarModeLabel, liarModeSummary } from "../engine/model";
 import { LIAR_CREATE_SUBCOMMAND, LIAR_STATS_SUBCOMMAND, liarCommand, liarKeywordCommand } from "./commands";
 
 const PREFIX_VOTE = "!투표";
@@ -72,6 +72,7 @@ interface LiarStatsSummary {
     losses: number;
   }>;
   recentMatches: Array<{
+    mode: LiarMode;
     guildName: string | null;
     categoryLabel: string;
     status: "completed" | "cancelled";
@@ -147,7 +148,7 @@ export class LiarDiscordService {
     await this.sendPublicMessage(
       client,
       game,
-      "라이어게임 로비가 열렸습니다. 아래 버튼으로 참가하고, 방장은 카테고리를 고른 뒤 시작하세요.",
+      "라이어게임 로비가 열렸습니다. 아래 버튼으로 참가하고, 방장은 카테고리와 규칙 모드를 고른 뒤 시작하세요.",
       interaction.channel ?? null,
     );
     return true;
@@ -209,6 +210,7 @@ export class LiarDiscordService {
           game,
           [
             `라이어게임이 시작되었습니다. 카테고리는 ${game.category.label} 입니다.`,
+            `규칙 모드: ${liarModeLabel(game.mode)} (${liarModeSummary(game.mode)})`,
             "각 참가자는 `/제시어` 로 자기 정보를 확인하세요.",
             "설명은 차례가 된 사람이 채널에 일반 메시지로 한 줄만 입력하면 됩니다.",
             "설명 순서:",
@@ -254,7 +256,7 @@ export class LiarDiscordService {
   }
 
   async handleSelect(client: Client, interaction: StringSelectMenuInteraction): Promise<boolean> {
-    if (!interaction.customId.startsWith("liar-category:")) {
+    if (!interaction.customId.startsWith("liar-category:") && !interaction.customId.startsWith("liar-mode:")) {
       return false;
     }
 
@@ -262,13 +264,20 @@ export class LiarDiscordService {
       throw new Error("서버 안에서만 사용할 수 있습니다.");
     }
 
-    const [, gameId] = interaction.customId.split(":");
+    const [kind, gameId] = interaction.customId.split(":");
     const game = this.getActiveGame(interaction.guildId, gameId);
     this.assertGameChannel(interaction.channelId, game);
     this.assertHost(interaction.user.id, game);
-    game.setCategory(interaction.values[0]);
 
-    await this.replyEphemeral(interaction, `카테고리를 ${game.category.label} 로 바꿨습니다.`);
+    if (kind === "liar-category") {
+      game.setCategory(interaction.values[0]);
+      await this.replyEphemeral(interaction, `카테고리를 ${game.category.label} 로 바꿨습니다.`);
+      await this.resetPhaseState(client, game, interaction.channel ?? null);
+      return true;
+    }
+
+    game.setMode(interaction.values[0] as LiarMode);
+    await this.replyEphemeral(interaction, `규칙 모드를 ${liarModeLabel(game.mode)} 로 바꿨습니다.`);
     await this.resetPhaseState(client, game, interaction.channel ?? null);
     return true;
   }
@@ -715,7 +724,7 @@ export class LiarDiscordService {
 
     if (game.phase === "lobby") {
       lines.push("참가/나가기는 아래 버튼으로 처리합니다.");
-      lines.push("방장은 카테고리를 선택한 뒤 `시작` 버튼을 누르세요.");
+      lines.push("방장은 카테고리와 규칙 모드를 선택한 뒤 `시작` 버튼을 누르세요.");
     }
 
     if (game.phase === "clue") {
@@ -756,10 +765,15 @@ export class LiarDiscordService {
     const controlRow = new ActionRowBuilder<ButtonBuilder>();
 
     if (game.phase === "lobby") {
+      const cannotStartReason = game.getStartConfigurationError();
       controlRow.addComponents(
         new ButtonBuilder().setCustomId(`liar:join:${game.id}`).setLabel("참가").setStyle(ButtonStyle.Primary).setDisabled(game.playerCount >= 8),
         new ButtonBuilder().setCustomId(`liar:leave:${game.id}`).setLabel("나가기").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`liar:start:${game.id}`).setLabel("시작").setStyle(ButtonStyle.Success).setDisabled(game.playerCount < 4),
+        new ButtonBuilder()
+          .setCustomId(`liar:start:${game.id}`)
+          .setLabel("시작")
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(game.playerCount < 4 || Boolean(cannotStartReason)),
         new ButtonBuilder().setCustomId(`liar:end:${game.id}`).setLabel("종료").setStyle(ButtonStyle.Danger),
       );
       rows.push(controlRow);
@@ -778,6 +792,22 @@ export class LiarDiscordService {
           ),
       );
       rows.push(categoryRow);
+
+      const modeRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`liar-mode:${game.id}`)
+          .setPlaceholder(`규칙 모드 선택 (현재: ${liarModeLabel(game.mode)})`)
+          .addOptions(
+            this.buildModeOptions().map((mode) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(`${liarModeLabel(mode.id)} · ${mode.shortLabel}`)
+                .setDescription(mode.description)
+                .setValue(mode.id)
+                .setDefault(mode.id === game.mode),
+            ),
+          ),
+      );
+      rows.push(modeRow);
       return rows;
     }
 
@@ -813,9 +843,14 @@ export class LiarDiscordService {
         : result.winner === "liar"
           ? "라이어 승리"
           : "게임 종료";
+    const modeLine = `규칙 모드: ${liarModeLabel(game.mode)}`;
     const wordLine = game.secretWord ? `정답 제시어: ${game.secretWord}` : null;
+    const liarAssignedWordLine =
+      game.mode === "modeB" && game.liarAssignedWord ? `라이어에게 주어진 제시어: ${game.liarAssignedWord}` : null;
     const liarLine = game.liarId ? `라이어: ${game.getPlayer(game.liarId)?.displayName ?? game.liarId}` : null;
-    return [title, result.reason, wordLine, liarLine].filter((line): line is string => Boolean(line)).join("\n");
+    return [title, result.reason, modeLine, wordLine, liarAssignedWordLine, liarLine]
+      .filter((line): line is string => Boolean(line))
+      .join("\n");
   }
 
   private async announceVoteResolution(
@@ -943,7 +978,7 @@ export class LiarDiscordService {
         const roleLabel = match.wasLiar ? "라이어" : "시민";
         const accusedLabel = match.wasAccused ? "지목" : "미지목";
         lines.push(
-          `${index + 1}. ${resultLabel} · ${roleLabel} · ${match.categoryLabel} · ${accusedLabel} · ${this.formatDate(match.endedAt)}${
+          `${index + 1}. ${resultLabel} · ${liarModeLabel(match.mode)} · ${roleLabel} · ${match.categoryLabel} · ${accusedLabel} · ${this.formatDate(match.endedAt)}${
             match.guildName ? ` · ${match.guildName}` : ""
           }`,
         );
@@ -955,6 +990,21 @@ export class LiarDiscordService {
 
   private formatDate(value: Date): string {
     return value.toISOString().slice(0, 10);
+  }
+
+  private buildModeOptions(): Array<{ id: LiarMode; shortLabel: string; description: string }> {
+    return [
+      {
+        id: "modeA",
+        shortLabel: "라이어 공개형",
+        description: "라이어는 자신이 라이어임을 알고 제시어를 받지 않습니다.",
+      },
+      {
+        id: "modeB",
+        shortLabel: "오답 제시어형",
+        description: "라이어는 자신이 라이어인지 모른 채 혼자 다른 제시어를 받습니다.",
+      },
+    ];
   }
 
   private async syncSeenUser(guildId: string, guildName: string, userId: string, displayName: string): Promise<void> {

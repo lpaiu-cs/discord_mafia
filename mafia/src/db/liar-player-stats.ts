@@ -26,6 +26,7 @@ export interface LiarStreakStats {
 
 export interface LiarRecentMatch {
   externalGameId: string;
+  mode: "modeA" | "modeB";
   guildName: string | null;
   categoryLabel: string;
   status: RecordedLiarMatchStatus;

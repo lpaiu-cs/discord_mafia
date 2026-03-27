@@ -1,4 +1,5 @@
 import { RouteContext } from "./context";
+import { loadPlayerDashboardStats } from "../load-player-dashboard-stats";
 import { requireSession, sendJson } from "./utils";
 import { buildDashboardState } from "../presenter";
 
@@ -21,6 +22,19 @@ export async function handleGameState(ctx: RouteContext, gameId: string): Promis
   }
 
   const sinceVersion = Number.parseInt(ctx.url.searchParams.get("sinceVersion") ?? "", 10);
-  const payload = buildDashboardState(game, session.discordUserId, Number.isNaN(sinceVersion) ? undefined : sinceVersion);
+  if (!Number.isNaN(sinceVersion) && sinceVersion === game.stateVersion) {
+    sendJson(ctx.response, 200, {
+      changed: false,
+      version: game.stateVersion,
+      serverNow: Date.now(),
+    });
+    return;
+  }
+
+  const playerStats = await loadPlayerDashboardStats(ctx.gameStatsStore, session.discordUserId);
+  const payload = buildDashboardState(game, session.discordUserId, undefined, {
+    statsEnabled: ctx.gameStatsStore.enabled,
+    playerStats,
+  });
   sendJson(ctx.response, 200, payload);
 }

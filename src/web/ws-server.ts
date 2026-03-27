@@ -1,12 +1,15 @@
 import { IncomingMessage } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
+import { GameStatsStore } from "../db/game-stats-store";
 import { GameRegistry, InMemoryGameRegistry } from "../game/game";
 import { requireSessionForWs } from "./routes/utils";
+import { loadPlayerDashboardStats } from "./load-player-dashboard-stats";
 import { buildDashboardState } from "./presenter";
 import { SessionStore } from "./session-store";
 
 export interface WsServerOptions {
   gameManager: GameRegistry;
+  gameStatsStore: GameStatsStore;
   sessionStore: SessionStore;
   cookieBaseName: string;
 }
@@ -18,7 +21,7 @@ export class DashboardWsServer {
     this.wss = new WebSocketServer({ noServer: true });
 
     this.options.gameManager.onGameStateChange = (gameId: string) => {
-      this.broadcastGameState(gameId);
+      void this.broadcastGameState(gameId);
     };
   }
 
@@ -46,29 +49,33 @@ export class DashboardWsServer {
     });
   }
 
-  public broadcastGameState(gameId: string): void {
+  public async broadcastGameState(gameId: string): Promise<void> {
     const game = this.options.gameManager.findByGameId(gameId);
     if (!game) return;
 
-    this.wss.clients.forEach((client) => {
+    for (const client of this.wss.clients) {
       if (client.readyState === WebSocket.OPEN) {
         const authorizedClient = this.getAuthorizedClient(client, gameId);
         if (!authorizedClient) {
-          return;
+          continue;
         }
 
         const { userId } = authorizedClient;
         const clientGameId = authorizedClient.gameId;
         if (clientGameId === gameId && userId) {
           try {
-            const payload = buildDashboardState(game, userId);
+            const playerStats = await loadPlayerDashboardStats(this.options.gameStatsStore, userId);
+            const payload = buildDashboardState(game, userId, undefined, {
+              statsEnabled: this.options.gameStatsStore.enabled,
+              playerStats,
+            });
             client.send(JSON.stringify({ type: "state", payload }));
           } catch (e) {
             // Ignore
           }
         }
       }
-    });
+    }
   }
 
   private getAuthorizedClient(client: WebSocket, expectedGameId: string): AuthorizedClient | null {

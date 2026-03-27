@@ -11,19 +11,16 @@ import {
   Partials,
   StringSelectMenuInteraction,
 } from "discord.js";
-import { join as joinPath } from "node:path";
 import { config } from "./config";
+import { createGameStatsStore } from "./db/create-game-stats-store";
 import { buildDashboardReply, buildDashboardWaitingReply } from "./discord/dashboard";
 import { mafiaCommand, registerCommands } from "./discord/commands";
-import { MafiaGame, createGame } from "./game/game";
-import { PersistentGameRegistry } from "./game/persistent-registry";
+import { GameRegistry, InMemoryGameRegistry, MafiaGame, createGame } from "./game/game";
 import { Ruleset } from "./game/model";
 import { DashboardAccessService } from "./web/access";
 import { JoinTicketService } from "./web/join-ticket";
 import { FixedBaseUrlProvider, QuickTunnelProvider } from "./web/public-base-url";
-import { SessionStore } from "./web/session-store";
-import { PersistentSessionStore } from "./web/persistent-session-store";
-import { PersistentJoinTicketStore } from "./web/persistent-join-ticket-store";
+import { SessionStore, InMemorySessionStore } from "./web/session-store";
 import { DashboardServer } from "./web/server";
 
 const client = new Client({
@@ -32,21 +29,15 @@ const client = new Client({
 });
 
 const endedGameCleanupTimers = new Map<string, NodeJS.Timeout>();
-const manager = new PersistentGameRegistry({
-  filePath: joinPath(config.stateStorageDir, "games.json"),
-  deliveryMode: config.gameDeliveryMode,
-  onEnded: (game: MafiaGame) => {
-    scheduleEndedGameCleanup(game);
-  },
+const gameStatsStore = createGameStatsStore();
+const manager: GameRegistry = new InMemoryGameRegistry((game: MafiaGame) => {
+  scheduleEndedGameCleanup(game);
+  void gameStatsStore.recordEndedGame(game).catch((error) => {
+    console.error(`failed to record ended game ${game.id}`, error);
+  });
 });
-const joinTicketService = new JoinTicketService(
-  config.joinTicketSecret,
-  new PersistentJoinTicketStore(joinPath(config.stateStorageDir, "join-tickets.json")),
-);
-const sessionStore: SessionStore = new PersistentSessionStore(
-  config.webSessionSecret,
-  joinPath(config.stateStorageDir, "sessions.json"),
-);
+const joinTicketService = new JoinTicketService(config.joinTicketSecret);
+const sessionStore: SessionStore = new InMemorySessionStore(config.webSessionSecret);
 const publicBaseUrlProvider =
   config.webMode === "quick_tunnel"
     ? new QuickTunnelProvider(config.webPort, config.quickTunnelEnabled)
@@ -59,27 +50,35 @@ const dashboardAccess = new DashboardAccessService(
 const dashboardServer = new DashboardServer({
   client,
   gameManager: manager,
+  gameStatsStore,
   joinTicketService,
   sessionStore,
   port: config.webPort,
   secureCookies: config.secureCookies,
 });
 
-manager.getAllGames().forEach((game) => {
-  if (game.phase === "ended") {
-    scheduleEndedGameCleanup(game);
-  }
-});
-
-void dashboardServer.listen().then((port) => {
+async function main(): Promise<void> {
+  await gameStatsStore.initialize();
+  const port = await dashboardServer.listen();
   console.log(`dashboard server listening on port ${port}`);
-}).catch((error) => {
-  console.error("failed to start dashboard server", error);
+  await client.login(config.token);
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void gameStatsStore.close().catch((error) => {
+      console.error("failed to close game stats store", error);
+    });
+  });
+}
+
+void main().catch((error) => {
+  console.error("failed to start application", error);
+  process.exitCode = 1;
 });
 
 client.once(Events.ClientReady, async (readyClient) => {
   await registerCommands();
-  await manager.restoreActiveTimers(readyClient);
   console.log(`logged in as ${readyClient.user.tag}`);
 });
 
@@ -339,8 +338,6 @@ async function replyError(interaction: Interaction, message: string): Promise<vo
     console.error("failed to send interaction error reply", replyError);
   }
 }
-
-void client.login(config.token);
 
 async function replyWithDashboardLink(
   interaction: ChatInputCommandInteraction | ButtonInteraction,

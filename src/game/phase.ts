@@ -56,6 +56,7 @@ export async function finishNight(game: MafiaGame, client: Client): Promise<void
       game.phaseContext = null;
       game.endedWinner = winner;
       game.endedReason = `${winner} 승리`;
+      game.endedAt = Date.now();
       game.appendPublicLine(`${winner} 승리`);
       await game.sendPhaseMessage(client, {
         title: "게임 종료",
@@ -256,6 +257,7 @@ export async function finishTrial(game: MafiaGame, client: Client): Promise<void
       game.phaseContext = null;
       game.endedWinner = winner;
       game.endedReason = `${winner} 승리`;
+      game.endedAt = Date.now();
       game.appendPublicLine(`${winner} 승리`);
       await game.sendPhaseMessage(client, {
         title: "게임 종료",
@@ -270,4 +272,3 @@ export async function finishTrial(game: MafiaGame, client: Client): Promise<void
 
     await game.beginNight(client);
   }
-

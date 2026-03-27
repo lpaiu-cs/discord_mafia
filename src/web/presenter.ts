@@ -1,6 +1,7 @@
+import { PlayerDashboardStats } from "../db/player-dashboard-stats";
 import { DISCUSSION_TIME_ADJUST_SECONDS, MafiaGame, VisibleAudioCue, WebChatChannel } from "../game/game";
-import { isMafiaTeam, Phase, PlayerState } from "../game/model";
-import { getRoleLabel, getRoleSummary, getTeamLabel } from "../game/rules";
+import { isMafiaTeam, NightActionType, Phase, PlayerState } from "../game/model";
+import { getRoleLabel, getRoleSummary, getTeamLabel, TEAM_LABELS } from "../game/rules";
 
 const PHASE_LABELS: Record<Phase, string> = {
   lobby: "로비",
@@ -120,6 +121,43 @@ export interface DashboardStatePayload {
   systemLog: {
     privateLines: Array<{ id: string; line: string; createdAt: number }>;
   };
+  personalStats: {
+    enabled: boolean;
+    hasRecordedMatches: boolean;
+    summary: {
+      matchesPlayed: number;
+      wins: number;
+      losses: number;
+      winRatePercent: number;
+      mafiaWins: number;
+      citizenWins: number;
+    };
+    roleStats: Array<{
+      role: PlayerState["role"];
+      roleLabel: string;
+      plays: number;
+      wins: number;
+      losses: number;
+      winRatePercent: number;
+    }>;
+    recentMatches: Array<{
+      externalGameId: string;
+      guildName: string | null;
+      rulesetLabel: string;
+      status: "completed" | "aborted";
+      statusLabel: string;
+      resultLabel: string;
+      winnerTeamLabel: string | null;
+      endedReason: string | null;
+      playerCount: number;
+      endedAt: number;
+      originalRoleLabel: string;
+      finalRoleLabel: string;
+      teamLabel: string;
+      survived: boolean;
+      deathReason: string | null;
+    }>;
+  };
 }
 
 export interface DashboardStateResponse {
@@ -133,6 +171,10 @@ export function buildDashboardState(
   game: MafiaGame,
   userId: string,
   sinceVersion?: number,
+  options: {
+    statsEnabled?: boolean;
+    playerStats?: PlayerDashboardStats | null;
+  } = {},
 ): DashboardStateResponse {
   const serverNow = Date.now();
   if (sinceVersion && sinceVersion === game.stateVersion) {
@@ -240,6 +282,7 @@ export function buildDashboardState(
     systemLog: {
       privateLines: game.getPrivateLog(userId),
     },
+    personalStats: buildPersonalStatsView(options.statsEnabled ?? false, options.playerStats ?? null),
   };
 
   return {
@@ -248,6 +291,75 @@ export function buildDashboardState(
     serverNow,
     state,
   };
+}
+
+function buildPersonalStatsView(
+  enabled: boolean,
+  playerStats: PlayerDashboardStats | null,
+): DashboardStatePayload["personalStats"] {
+  if (!playerStats) {
+    return {
+      enabled,
+      hasRecordedMatches: false,
+      summary: {
+        matchesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        winRatePercent: 0,
+        mafiaWins: 0,
+        citizenWins: 0,
+      },
+      roleStats: [],
+      recentMatches: [],
+    };
+  }
+
+  const matchesPlayed = playerStats.lifetime.matchesPlayed;
+  return {
+    enabled,
+    hasRecordedMatches: matchesPlayed > 0,
+    summary: {
+      matchesPlayed,
+      wins: playerStats.lifetime.wins,
+      losses: playerStats.lifetime.losses,
+      winRatePercent: calculateWinRate(playerStats.lifetime.wins, matchesPlayed),
+      mafiaWins: playerStats.lifetime.mafiaWins,
+      citizenWins: playerStats.lifetime.citizenWins,
+    },
+    roleStats: playerStats.roleStats.map((roleStat) => ({
+      role: roleStat.role,
+      roleLabel: getRoleLabel(roleStat.role),
+      plays: roleStat.plays,
+      wins: roleStat.wins,
+      losses: roleStat.losses,
+      winRatePercent: calculateWinRate(roleStat.wins, roleStat.plays),
+    })),
+    recentMatches: playerStats.recentMatches.map((match) => ({
+      externalGameId: match.externalGameId,
+      guildName: match.guildName,
+      rulesetLabel: match.ruleset === "balance" ? "시즌4 밸런스" : "시즌4 초기",
+      status: match.status,
+      statusLabel: match.status === "completed" ? "정상 종료" : "중단",
+      resultLabel: match.status === "completed" ? (match.isWinner ? "승리" : "패배") : "기록 제외",
+      winnerTeamLabel: match.winnerTeam ? TEAM_LABELS[match.winnerTeam] : null,
+      endedReason: match.endedReason,
+      playerCount: match.playerCount,
+      endedAt: match.endedAt.getTime(),
+      originalRoleLabel: getRoleLabel(match.originalRole),
+      finalRoleLabel: getRoleLabel(match.finalRole),
+      teamLabel: TEAM_LABELS[match.team],
+      survived: match.survived,
+      deathReason: match.deathReason,
+    })),
+  };
+}
+
+function calculateWinRate(wins: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return Math.round((wins / total) * 100);
 }
 
 function buildActionPanel(game: MafiaGame, player: PlayerState): DashboardStatePayload["actions"] {
@@ -361,6 +473,8 @@ function buildNightControls(
     return;
   }
 
+  const submittedTargetId = currentNightSelectionTarget(game, player, prompt.action);
+
   controls.push({
     id: `night:${prompt.action}`,
     type: "select",
@@ -372,8 +486,8 @@ function buildNightControls(
       label: game.getPlayerOrThrow(targetId).displayName,
       value: targetId,
     })),
-    currentValue: game.nightActions.get(player.userId)?.targetId ?? null,
-    currentLabel: labelForTarget(game, game.nightActions.get(player.userId)?.targetId),
+    currentValue: submittedTargetId,
+    currentLabel: labelForTarget(game, submittedTargetId),
   });
 }
 
@@ -544,6 +658,25 @@ function labelForTarget(game: MafiaGame, targetId?: string | null): string | nul
   }
 
   return game.getPlayer(targetId)?.displayName ?? null;
+}
+
+function currentNightSelectionTarget(
+  game: MafiaGame,
+  player: PlayerState,
+  action: NightActionType,
+): string | null {
+  if (action === "mafiaKill") {
+    const latestSubmitted = [...game.nightActions.values()]
+      .filter((record) => record.action === "mafiaKill")
+      .filter((record) => {
+        const actor = game.getPlayer(record.actorId);
+        return actor && actor.alive && actor.role === "mafia" && !game.isBlockedTonight(actor.userId);
+      })
+      .sort((left, right) => right.submittedAt - left.submittedAt)[0];
+    return latestSubmitted?.targetId ?? null;
+  }
+
+  return game.nightActions.get(player.userId)?.targetId ?? null;
 }
 
 function hasActiveNightAction(role: PlayerState["role"]): boolean {

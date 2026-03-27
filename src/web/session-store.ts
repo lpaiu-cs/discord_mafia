@@ -21,8 +21,8 @@ export interface SessionStore {
 }
 
 export class InMemorySessionStore implements SessionStore {
-  protected readonly sessions = new Map<string, WebSession>();
-  protected readonly currentByGameUser = new Map<string, string>();
+  private readonly sessions = new Map<string, WebSession>();
+  private readonly currentByGameUser = new Map<string, string>();
 
   constructor(
     private readonly secret: string,
@@ -140,32 +140,6 @@ export class InMemorySessionStore implements SessionStore {
 
     for (const sessionId of expired) {
       this.invalidate(sessionId);
-    }
-  }
-
-  protected snapshotState(): {
-    sessions: WebSession[];
-    currentByGameUser: Array<[string, string]>;
-  } {
-    return {
-      sessions: [...this.sessions.values()].map((session) => ({ ...session })),
-      currentByGameUser: [...this.currentByGameUser.entries()],
-    };
-  }
-
-  protected loadSnapshot(snapshot: {
-    sessions?: WebSession[];
-    currentByGameUser?: Array<[string, string]>;
-  }): void {
-    this.sessions.clear();
-    this.currentByGameUser.clear();
-
-    for (const session of snapshot.sessions ?? []) {
-      this.sessions.set(session.id, { ...session });
-    }
-
-    for (const [key, sessionId] of snapshot.currentByGameUser ?? []) {
-      this.currentByGameUser.set(key, sessionId);
     }
   }
 }

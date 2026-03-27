@@ -131,6 +131,37 @@ test("행동 패널은 단계에 맞는 행동만 노출한다", () => {
   assert.equal(state.actions.controls.some((control) => control.actionType === "night_select"), false);
 });
 
+test("마피아 밤 선택 마커는 개인 draft 가 아니라 팀의 마지막 제출 대상을 따른다", () => {
+  const game = createTestGame();
+  seedPlayers(game, [
+    { userId: "mafia-a", role: "mafia", displayName: "루나" },
+    { userId: "mafia-b", role: "mafia", displayName: "세아" },
+    { userId: "citizen", role: "citizen", displayName: "민재" },
+  ]);
+
+  game.phase = "night";
+  game.phaseContext = { token: 2, startedAt: Date.now(), deadlineAt: Date.now() + 10_000 };
+  game.nightActions.set("mafia-a", {
+    actorId: "mafia-a",
+    action: "mafiaKill",
+    targetId: "mafia-b",
+    submittedAt: 100,
+  });
+  game.nightActions.set("mafia-b", {
+    actorId: "mafia-b",
+    action: "mafiaKill",
+    targetId: "citizen",
+    submittedAt: 200,
+  });
+
+  const state = buildDashboardState(game, "mafia-a").state!;
+  const control = state.actions.controls.find((entry) => entry.action === "mafiaKill");
+
+  assert.ok(control);
+  assert.equal(control.currentValue, "citizen");
+  assert.equal(control.currentLabel, "민재");
+});
+
 test("찬반 투표 패널에는 현재 대상 이름이 포함된다", () => {
   const game = createTestGame();
   seedPlayers(game, [

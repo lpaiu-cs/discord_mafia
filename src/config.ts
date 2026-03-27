@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import { resolve as resolvePath } from "node:path";
 import { Ruleset } from "./game/model";
 
 dotenv.config();
@@ -111,5 +110,6 @@ export const config = {
   endedGameRetentionSeconds: readInteger("ENDED_GAME_RETENTION_SECONDS", 900),
   gameDeliveryMode: readDeliveryMode(),
   secureCookies: resolveSecureCookies(webMode, publicBaseUrl),
-  stateStorageDir: resolvePath(process.cwd(), readString("STATE_STORAGE_DIR", ".data/runtime")),
+  databaseUrl: readString("DATABASE_URL", ""),
+  databaseSsl: readBoolean("DATABASE_SSL", false),
 };

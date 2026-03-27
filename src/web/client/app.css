@@ -911,6 +911,29 @@
         opacity: 0.4;
       }
 
+      .seat-action-markers {
+        position: absolute;
+        top: -4px;
+        left: 16px;
+        display: inline-flex;
+        gap: 2px;
+        z-index: 7;
+        pointer-events: none;
+      }
+
+      .seat-action-marker {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+        animation: seat-action-marker-pop 0.18s ease-out;
+      }
+
+      @keyframes seat-action-marker-pop {
+        0% { transform: scale(0.8); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
 
 
       .seat-card.is-viewer {
@@ -926,6 +949,8 @@
       }
 
       .action-grid-cell {
+        position: relative;
+        overflow: hidden;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -960,29 +985,51 @@
         pointer-events: none;
       }
 
-      .action-grid-cell.is-selected {
+      .action-grid-cell.is-draft-selected,
+      .action-grid-cell.is-submitted {
         border-color: rgba(245, 180, 95, 0.5);
         background: rgba(245, 180, 95, 0.12);
         box-shadow: 0 0 12px rgba(245, 180, 95, 0.15);
       }
 
-      .action-target-icon {
-        position: absolute;
-        inset: 0;
-        margin: auto;
-        width: 44px;
-        height: 44px;
-        object-fit: contain;
-        opacity: 0.85;
-        z-index: 10;
-        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-        animation: action-icon-pop 0.25s cubic-bezier(0.3, 1.2, 0.4, 1);
-        pointer-events: none;
+      .action-grid-cell.is-draft-selected {
+        border-style: dashed;
       }
 
-      @keyframes action-icon-pop {
-        0% { transform: scale(0.5); opacity: 0; }
-        100% { transform: scale(1); opacity: 0.85; }
+      .action-grid-cell::after {
+        content: "";
+        position: absolute;
+        inset: 4px;
+        border-radius: 10px;
+        background-image: var(--action-marker-url);
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: auto 92%;
+        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0;
+      }
+
+      .action-grid-cell.is-submitted::after {
+        opacity: 0.88;
+        animation: action-grid-marker-pop 0.18s ease-out;
+      }
+
+      .action-grid-avatar-wrap {
+        position: relative;
+        z-index: 2;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+      }
+
+      @keyframes action-grid-marker-pop {
+        0% { transform: scale(0.9); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
       }
 
       .action-grid-avatar {
@@ -995,6 +1042,11 @@
         font-size: 0.78rem;
         font-weight: 800;
         border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .action-grid-name {
+        position: relative;
+        z-index: 2;
       }
 
       /* Memo feature styles */
@@ -1380,6 +1432,135 @@
         100% { transform: translateY(0); opacity: 1; }
       }
 
+      .personal-tab-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .personal-block {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.28);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+      }
+
+      .personal-block-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .personal-block-head h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .personal-block-head span {
+        color: var(--muted, rgba(226, 232, 240, 0.72));
+        font-size: 0.85rem;
+      }
+
+      .stat-chip-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stat-chip {
+        display: grid;
+        gap: 4px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+      }
+
+      .stat-chip span {
+        color: rgba(226, 232, 240, 0.72);
+        font-size: 0.85rem;
+      }
+
+      .stat-chip strong {
+        font-size: 1.1rem;
+      }
+
+      .stat-chip--accent {
+        border-color: rgba(34, 197, 94, 0.35);
+        background: rgba(21, 128, 61, 0.18);
+      }
+
+      .role-stat-list,
+      .match-history-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .role-stat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.34);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+      }
+
+      .role-stat-row > div {
+        display: grid;
+        gap: 3px;
+      }
+
+      .role-stat-row span {
+        color: rgba(226, 232, 240, 0.7);
+        font-size: 0.84rem;
+      }
+
+      .match-card {
+        display: grid;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(15, 23, 42, 0.38);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+      }
+
+      .match-card--win {
+        border-color: rgba(34, 197, 94, 0.35);
+      }
+
+      .match-card--lose {
+        border-color: rgba(248, 113, 113, 0.35);
+      }
+
+      .match-card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .match-card-head > div,
+      .match-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+      }
+
+      .match-card-head strong,
+      .match-card-head span,
+      .match-card-meta span {
+        white-space: nowrap;
+      }
+
+      .match-card-head span,
+      .match-card-meta span,
+      .match-card-reason {
+        color: rgba(226, 232, 240, 0.74);
+        font-size: 0.84rem;
+      }
+
       @media (min-width: 960px) {
         .shell {
           width: min(1280px, calc(100vw - 44px));
@@ -1450,6 +1631,10 @@
         }
 
         .reveal-grid {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .stat-chip-grid {
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
 

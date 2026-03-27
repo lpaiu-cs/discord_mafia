@@ -4,7 +4,9 @@
   "description": "Discord lobby + web dashboard bot for Mafia42 season 4 style games",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-web-client.mjs",
+    "build:web-client": "node scripts/build-web-client.mjs",
+    "db:migrate": "tsx src/db/migrate.ts",
     "dev": "tsx src/index.ts",
     "dev:preview": "cross-env DISCORD_BOT_TOKEN=preview-token DISCORD_APPLICATION_ID=preview-app PUBLIC_BASE_URL=http://localhost:3010 WEB_SESSION_SECRET=preview-web-session-secret JOIN_TICKET_SECRET=preview-join-ticket-secret tsx src/dev/web-preview.ts",
     "dev:practice": "cross-env PRACTICE_SCENARIO=practice1 DISCORD_BOT_TOKEN=practice-token DISCORD_APPLICATION_ID=practice-app PUBLIC_BASE_URL=http://localhost:3014 WEB_SESSION_SECRET=practice-web-session-secret JOIN_TICKET_SECRET=practice-join-ticket-secret tsx src/dev/web-practice.ts",
@@ -26,6 +28,7 @@
   "dependencies": {
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
+    "pg": "^8.16.3",
     "ts-morph": "^27.0.2",
     "ws": "^8.20.0"
   },
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.7.2",
+    "@types/pg": "^8.15.4",
     "@types/ws": "^8.18.1",
     "cross-env": "^10.1.0",
     "ts-node": "^10.9.2",

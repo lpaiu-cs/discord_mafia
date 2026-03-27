@@ -1,5 +1,6 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
 import { Client } from "discord.js";
+import { GameStatsStore, NoopGameStatsStore } from "../db/game-stats-store";
 import { GameRegistry } from "../game/game";
 import { JoinTicketService } from "./join-ticket";
 import { RateLimiter } from "./middleware/rate-limit";
@@ -19,6 +20,7 @@ import { sendJson, safeDecodePath } from "./routes/utils";
 interface DashboardServerOptions {
   client: Client;
   gameManager: GameRegistry;
+  gameStatsStore?: GameStatsStore;
   joinTicketService: JoinTicketService;
   sessionStore: SessionStore;
   port: number;
@@ -28,6 +30,7 @@ interface DashboardServerOptions {
 export class DashboardServer {
   private readonly server: Server;
   private readonly wsServer: DashboardWsServer;
+  private readonly gameStatsStore: GameStatsStore;
   private readonly authRateLimit = new RateLimiter(20, 60_000);
   private readonly stateRateLimit = new RateLimiter(240, 60_000);
   private readonly actionRateLimit = new RateLimiter(120, 60_000);
@@ -35,12 +38,14 @@ export class DashboardServer {
   private readonly cookieBaseName = "mafia_session";
 
   constructor(private readonly options: DashboardServerOptions) {
+    this.gameStatsStore = this.options.gameStatsStore ?? new NoopGameStatsStore();
     this.server = createServer((request, response) => {
       void this.handleRequest(request, response);
     });
 
     this.wsServer = new DashboardWsServer({
       gameManager: this.options.gameManager,
+      gameStatsStore: this.gameStatsStore,
       sessionStore: this.options.sessionStore,
       cookieBaseName: this.cookieBaseName,
     });
@@ -93,6 +98,7 @@ export class DashboardServer {
         response,
         url,
         gameManager: this.options.gameManager,
+        gameStatsStore: this.gameStatsStore,
         joinTicketService: this.options.joinTicketService,
         sessionStore: this.options.sessionStore,
         secureCookies: this.options.secureCookies,
@@ -152,4 +158,3 @@ export class DashboardServer {
     }
   }
 }
-

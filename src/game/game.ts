@@ -140,7 +140,7 @@ export interface GameRegistry {
 }
 
 export class InMemoryGameRegistry implements GameRegistry {
-  protected readonly games = new Map<string, MafiaGame>();
+  private readonly games = new Map<string, MafiaGame>();
   public onGameStateChange?: (gameId: string) => void;
 
   constructor(public readonly onEnded?: (game: MafiaGame) => void) {}
@@ -172,7 +172,7 @@ export class InMemoryGameRegistry implements GameRegistry {
         }
       },
       config.gameDeliveryMode,
-      (g) => this.handleGameStateChange(g),
+      (g) => this.onGameStateChange?.(g.id),
     );
     this.games.set(guild.id, game);
     return game;
@@ -181,15 +181,12 @@ export class InMemoryGameRegistry implements GameRegistry {
   delete(guildId: string): void {
     this.games.delete(guildId);
   }
-
-  protected handleGameStateChange(game: MafiaGame): void {
-    this.onGameStateChange?.(game.id);
-  }
 }
 
 export class MafiaGame {
   readonly id: string;
   readonly guildId: string;
+  readonly guildName: string | null;
   readonly channelId: string;
   readonly hostId: string;
   readonly ruleset: Ruleset;
@@ -215,6 +212,9 @@ export class MafiaGame {
 
   phase: Phase = "lobby";
   phaseContext: PhaseContext | null = null;
+  createdAt = Date.now();
+  startedAt: number | null = null;
+  endedAt: number | null = null;
   dayNumber = 0;
   nightNumber = 0;
   currentTrialTargetId: string | null = null;
@@ -247,6 +247,7 @@ export class MafiaGame {
       .toString()
       .padStart(4, "0")}`;
     this.guildId = guild.id;
+    this.guildName = typeof guild.name === "string" ? guild.name : null;
     this.channelId = channelId;
     this.hostId = host.id;
     this.ruleset = ruleset;
@@ -525,6 +526,8 @@ export class MafiaGame {
     this.assignLovers();
     this.endedWinner = null;
     this.endedReason = null;
+    this.startedAt = Date.now();
+    this.endedAt = null;
     await this.prepareSecretChannels(client);
     await this.sendRoleCards(client);
 
@@ -563,6 +566,7 @@ export class MafiaGame {
     this.phaseContext = null;
     this.endedWinner = null;
     this.endedReason = reason;
+    this.endedAt = Date.now();
     this.setPublicLines([reason]);
     await this.sendOrUpdateStatus(client);
     await this.lockOrDeleteSecretChannels(client);

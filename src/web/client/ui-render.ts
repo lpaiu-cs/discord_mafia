@@ -1,4 +1,5 @@
-import { GameState, ChatThread, Seat } from "./types.js";
+import { GameState, ChatThread, PersonalRecentMatch, PersonalRoleStat, Seat } from "./types.js";
+import { collectSeatActionMarkers, SeatActionMarkerMap } from "./action-markers.js";
 import { actionableControlCount, actionControlHtml, captureActionDraftState, restoreActionDraftState } from "./actions.js";
 import { chatMessagesHtml, chatFooterHtml, captureChatDraftState, restoreChatDraftState, captureChatScrollState, queueChatAutoscroll } from "./chat.js";
 import { estimateServerNow, currentState } from "./state-sync.js";
@@ -32,6 +33,16 @@ export function formatClock(timestamp?: number): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+  });
+}
+
+function formatDateTime(timestamp?: number): string {
+  if (!timestamp) return "없음";
+  return new Date(timestamp).toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -476,6 +487,7 @@ function updateSectionFrame(sectionId: string, spanClass: string, bodyClassName:
 export function renderStateSection(state: GameState) {
   const body = updateSectionFrame("state", "span-4", "panel-body viewer-stack");
   if (!body) return;
+  const actionMarkers = collectSeatActionMarkers(state);
   
   const team = teamClass(state);
   const roleIcon = ROLE_ICONS.find((role) => role.label === state.viewer.roleLabel);
@@ -501,10 +513,10 @@ export function renderStateSection(state: GameState) {
       </div>
       <div class="mini-card">
         <strong>행동</strong>
-        <div>${actionableControlCount(state)}개 가능</div>
+      <div>${actionableControlCount(state)}개 가능</div>
       </div>
     </div>
-    <div class="seat-grid">${state.room.seats.map((seat) => seatCard(state, seat)).join("")}</div>
+    <div class="seat-grid">${state.room.seats.map((seat) => seatCard(state, seat, actionMarkers)).join("")}</div>
     ${state.room.currentTrialTargetName ? `<div class="line-item"><strong>현재 대상</strong><div>${escapeHtml(state.room.currentTrialTargetName)}</div></div>` : ""}
     ${buildEndedSummaryHtml(state)}
   `);
@@ -543,7 +555,7 @@ function revealCard(state: GameState, revealed: any) {
   `;
 }
 
-function seatCard(state: GameState, seat: Seat) {
+function seatCard(state: GameState, seat: Seat, actionMarkers: SeatActionMarkerMap) {
   if (seat.empty) {
     return `
       <div class="seat-card is-empty">
@@ -560,13 +572,32 @@ function seatCard(state: GameState, seat: Seat) {
   if (seat.isViewer) classes.push("is-viewer");
   if (!seat.alive) classes.push("is-dead");
   const nickClass = nicknameClassForUser(state, seat.userId);
+  const markerHtml = seat.userId ? seatActionMarkersHtml(actionMarkers[seat.userId]) : "";
 
   return `
     <div class="${classes.join(" ")}" data-memo-seat="${seat.seat}">
       <div class="seat-avatar ${nickClass}">${seat.seat}</div>
+      ${markerHtml}
       <div class="seat-flags" style="position:absolute;top:26px;left:4px;z-index:4;flex-direction:column;">${flags.join("")}</div>
       ${seatMemoHtml(seat.seat)}
       <div class="seat-name ${nickClass}">${escapeHtml(seat.displayName || "")}</div>
+    </div>
+  `;
+}
+
+function seatActionMarkersHtml(markers?: { iconUrl: string; label: string }[]) {
+  if (!markers || markers.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="seat-action-markers" aria-hidden="true">
+      ${markers
+        .map(
+          (marker) =>
+            `<img class="seat-action-marker" src="${escapeAttribute(marker.iconUrl)}" alt="" title="${escapeAttribute(marker.label)}" />`,
+        )
+        .join("")}
     </div>
   `;
 }
@@ -690,10 +721,23 @@ export function renderSecretSection(state: GameState) {
 export function renderLogsSection(state: GameState) {
   const body = updateSectionFrame("logs", "span-12", "panel-body");
   if (!body) return;
+  const statsHtml = buildPersonalStatsHtml(state.personalStats);
   const lines = state.systemLog.privateLines.length > 0
     ? state.systemLog.privateLines.map((l) => `<div class="line-item success"><strong>${formatClock(l.createdAt)}</strong><div>${escapeHtml(l.line)}</div></div>`).join("")
     : '<div class="line-item muted">개인 결과가 아직 없습니다.</div>';
-  updateHtml(body, '<div class="line-list">' + lines + '</div>');
+  updateHtml(
+    body,
+    `<div class="personal-tab-stack">
+      ${statsHtml}
+      <section class="personal-block">
+        <div class="personal-block-head">
+          <h3>개인 로그</h3>
+          <span>현재 판 진행 기록</span>
+        </div>
+        <div class="line-list">${lines}</div>
+      </section>
+    </div>`,
+  );
 }
 
 export function ensureDashboardScaffold() {
@@ -761,4 +805,130 @@ export function render(state: GameState) {
   }
   pendingRenderState = null;
   renderNow(state);
+}
+
+function buildPersonalStatsHtml(stats: GameState["personalStats"]): string {
+  if (!stats.enabled) {
+    return `
+      <section class="personal-block">
+        <div class="personal-block-head">
+          <h3>플레이 전적</h3>
+          <span>DB 미연결</span>
+        </div>
+        <div class="line-item muted">전적 DB가 아직 연결되지 않았습니다.</div>
+      </section>
+    `;
+  }
+
+  if (!stats.hasRecordedMatches) {
+    return `
+      <section class="personal-block">
+        <div class="personal-block-head">
+          <h3>플레이 전적</h3>
+          <span>기록 없음</span>
+        </div>
+        <div class="line-item muted">완료된 게임 기록이 아직 없습니다. 현재 게임이 끝나면 여기부터 누적됩니다.</div>
+      </section>
+    `;
+  }
+
+  const summary = stats.summary;
+  const summaryCards = [
+    { label: "총 판수", value: String(summary.matchesPlayed), tone: "neutral" },
+    { label: "승률", value: `${summary.winRatePercent}%`, tone: "accent" },
+    { label: "승 / 패", value: `${summary.wins} / ${summary.losses}`, tone: "neutral" },
+    { label: "마피아 / 시민 승", value: `${summary.mafiaWins} / ${summary.citizenWins}`, tone: "neutral" },
+  ]
+    .map(
+      (card) => `
+        <div class="stat-chip stat-chip--${card.tone}">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+
+  const roleStats = stats.roleStats.length > 0
+    ? stats.roleStats.map((roleStat) => roleStatRow(roleStat)).join("")
+    : '<div class="line-item muted">직업별 전적이 아직 없습니다.</div>';
+
+  const recentMatches = stats.recentMatches.length > 0
+    ? stats.recentMatches.map((match) => recentMatchCard(match)).join("")
+    : '<div class="line-item muted">최근 경기 기록이 아직 없습니다.</div>';
+
+  return `
+    <section class="personal-block">
+      <div class="personal-block-head">
+        <h3>플레이 전적</h3>
+        <span>Discord ID 기준 누적</span>
+      </div>
+      <div class="stat-chip-grid">${summaryCards}</div>
+    </section>
+    <section class="personal-block">
+      <div class="personal-block-head">
+        <h3>직업별 성적</h3>
+        <span>누적 승률</span>
+      </div>
+      <div class="role-stat-list">${roleStats}</div>
+    </section>
+    <section class="personal-block">
+      <div class="personal-block-head">
+        <h3>최근 경기</h3>
+        <span>최근 10판</span>
+      </div>
+      <div class="match-history-list">${recentMatches}</div>
+    </section>
+  `;
+}
+
+function roleStatRow(roleStat: PersonalRoleStat): string {
+  return `
+    <div class="role-stat-row">
+      <div>
+        <strong>${escapeHtml(roleStat.roleLabel)}</strong>
+        <span>${roleStat.plays}판</span>
+      </div>
+      <div>
+        <strong>${roleStat.winRatePercent}%</strong>
+        <span>${roleStat.wins}승 ${roleStat.losses}패</span>
+      </div>
+    </div>
+  `;
+}
+
+function recentMatchCard(match: PersonalRecentMatch): string {
+  const guildLabel = match.guildName ? escapeHtml(match.guildName) : "이름 없는 서버";
+  const outcomeClass = match.resultLabel === "승리" ? "match-card--win" : match.resultLabel === "패배" ? "match-card--lose" : "match-card--neutral";
+  const finalRoleLine =
+    match.finalRoleLabel !== match.originalRoleLabel
+      ? `<span>최종 직업 ${escapeHtml(match.finalRoleLabel)}</span>`
+      : "";
+  const deathLine = match.survived
+    ? `<span>생존</span>`
+    : `<span>${escapeHtml(match.deathReason ?? "사망")}</span>`;
+
+  return `
+    <article class="match-card ${outcomeClass}">
+      <div class="match-card-head">
+        <div>
+          <strong>${escapeHtml(match.resultLabel)}</strong>
+          <span>${escapeHtml(match.statusLabel)} · ${escapeHtml(match.rulesetLabel)}</span>
+        </div>
+        <div>
+          <strong>${escapeHtml(match.originalRoleLabel)}</strong>
+          <span>${escapeHtml(match.teamLabel)}</span>
+        </div>
+      </div>
+      <div class="match-card-meta">
+        <span>${guildLabel}</span>
+        <span>${formatDateTime(match.endedAt)}</span>
+        <span>${match.playerCount}인</span>
+        ${match.winnerTeamLabel ? `<span>승리팀 ${escapeHtml(match.winnerTeamLabel)}</span>` : ""}
+        ${finalRoleLine}
+        ${deathLine}
+      </div>
+      ${match.endedReason ? `<div class="match-card-reason">${escapeHtml(match.endedReason)}</div>` : ""}
+    </article>
+  `;
 }

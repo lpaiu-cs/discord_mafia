@@ -1,10 +1,12 @@
-﻿{
+{
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
+    "rootDir": ".",
     "module": "ES2022",
     "moduleResolution": "Bundler",
     "outDir": "../../../dist/web/client",
     "lib": ["DOM", "DOM.Iterable", "ES2022"]
   },
-  "include": ["**/*.ts"]
+  "include": ["./**/*.ts"],
+  "exclude": []
 }

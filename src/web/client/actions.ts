@@ -1,4 +1,5 @@
 import { GameState, ActionControl } from "./types.js";
+import { actionMarkerCssValueForRole } from "./action-markers.js";
 import { escapeHtml, escapeAttribute, nicknameClassForUser } from "./ui-render.js";
 
 export function captureActionDraftState(): { actionType: string, targetId: string }[] {
@@ -29,7 +30,7 @@ export function restoreActionDraftState(drafts: { actionType: string, targetId: 
       if (gridParent && gridParent.classList.contains("action-grid")) {
         const gridCell = gridParent.querySelector('.action-grid-cell[data-grid-value="' + escapeAttribute(draft.targetId) + '"]');
         if (gridCell instanceof HTMLElement) {
-          gridCell.classList.add("is-selected");
+          gridCell.classList.add("is-draft-selected");
         }
       }
     }
@@ -83,17 +84,20 @@ export function actionControlHtml(state: GameState, control: ActionControl): str
     const seatNum = seat.seat;
     const nickClass = seat.empty ? "" : nicknameClassForUser(state, seat.userId);
     const isSelectable = !seat.empty && !!seat.userId && selectableValues.has(seat.userId);
-    const selected = !seat.empty && control.currentValue === seat.userId ? " is-selected" : "";
+    const submitted = !seat.empty && control.currentValue === seat.userId ? " is-submitted" : "";
     const disabledCls = (!isSelectable) ? " is-disabled" : "";
     const label = seat.empty ? "빈 자리" : seat.displayName;
     const deadCls = (!seat.empty && !seat.alive) ? " is-dead-cell" : "";
+    const markerCssValue = actionMarkerCssValueForRole(state.viewer.role);
+    const markerStyle = markerCssValue && (isSelectable || submitted)
+      ? ` style="--action-marker-url:${escapeAttribute(markerCssValue)}"`
+      : "";
 
-    const actionIconHtml = selected ? `<img src="/resource/actions/${state.viewer.role}_action.png" class="action-target-icon" />` : "";
-
-    return `<div class="action-grid-cell${selected}${disabledCls}${deadCls}"${isSelectable ? ` data-grid-value="${escapeHtml(seat.userId || "")}" data-action-type="${escapeHtml(control.actionType)}" data-action="${escapeHtml(control.action || "")}"` : ""}>
-      <div class="action-grid-avatar ${nickClass}">${seatNum}</div>
+    return `<div class="action-grid-cell${submitted}${disabledCls}${deadCls}"${isSelectable ? ` data-grid-value="${escapeHtml(seat.userId || "")}" data-action-type="${escapeHtml(control.actionType)}" data-action="${escapeHtml(control.action || "")}"` : ""}${markerStyle}>
+      <div class="action-grid-avatar-wrap">
+        <div class="action-grid-avatar ${nickClass}">${seatNum}</div>
+      </div>
       <div class="action-grid-name">${escapeHtml(label || "")}</div>
-      ${actionIconHtml}
     </div>`;
   }).join("");
   

@@ -1,4 +1,5 @@
 import { RouteContext } from "./context";
+import { loadPlayerDashboardStats } from "../load-player-dashboard-stats";
 import { requireSession, sendHtml } from "./utils";
 import { buildDashboardState } from "../presenter";
 import { renderDashboardPage } from "../html";
@@ -15,6 +16,10 @@ export async function handleGamePage(ctx: RouteContext, gameId: string): Promise
     return;
   }
 
-  const initial = buildDashboardState(game, session.discordUserId);
+  const playerStats = await loadPlayerDashboardStats(ctx.gameStatsStore, session.discordUserId);
+  const initial = buildDashboardState(game, session.discordUserId, undefined, {
+    statsEnabled: ctx.gameStatsStore.enabled,
+    playerStats,
+  });
   sendHtml(ctx.response, 200, renderDashboardPage(initial.state!, session.csrfToken));
 }

@@ -152,8 +152,8 @@ document.addEventListener("click", async (event) => {
     const gridValue = gridCell.dataset.gridValue;
     const gridParent = gridCell.closest(".action-grid");
     if (gridValue && gridParent) {
-      gridParent.querySelectorAll(".action-grid-cell").forEach((c) => c.classList.remove("is-selected"));
-      gridCell.classList.add("is-selected");
+      gridParent.querySelectorAll(".action-grid-cell").forEach((c) => c.classList.remove("is-draft-selected"));
+      gridCell.classList.add("is-draft-selected");
       const form = gridParent.nextElementSibling;
       if (form instanceof HTMLFormElement) {
         const hiddenInput = form.querySelector('input[name="targetId"]');

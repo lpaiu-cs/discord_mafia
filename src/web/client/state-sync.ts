@@ -3,15 +3,10 @@ import { render } from "./ui-render.js";
 import { updateDeadlineDisplays } from "./ui-render.js";
 
 const initialDataNode = document.getElementById("initial-state");
-export const initialPayload: InitialPayload & { state: GameState } = initialDataNode ? JSON.parse(initialDataNode.textContent || "{}") : {} as any;
+export const initialPayload: InitialPayload = initialDataNode ? JSON.parse(initialDataNode.textContent || "{}") : {} as any;
 export const csrfToken: string = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 
-export let currentState: GameState = initialPayload.state; /* Initial payload actually has state scattered or is it encapsulated? The original code had `const initialState = JSON.parse(...)`, Srv payload `initialState.room`, `initialState.version`, `initialState.serverNow`, etc., wait. The JS code did `const initialState = JSON.parse...; let currentState = initialState;`. Then `initialState.room.gameId` implies `initialPayload` IS `currentState`. */
-
-// Wait, the original code had:
-// let currentState = initialState;
-// console.log(initialState.room.gameId) => so `initialState` IS the GameState but with `version` and `serverNow` added. I will type GameState such that room is there.
-
+export let currentState: GameState = initialPayload as GameState;
 export let sinceVersion: number = initialPayload.version;
 export let syncedServerNowMs: number = initialPayload.serverNow;
 export let syncedClientPerfMs: number = performance.now();

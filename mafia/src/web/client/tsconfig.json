@@ -4,6 +4,8 @@
     "rootDir": ".",
     "module": "ES2022",
     "moduleResolution": "Bundler",
+    "incremental": true,
+    "tsBuildInfoFile": "../../../.cache/web-client-build.tsbuildinfo",
     "outDir": "../../../dist/web/client",
     "lib": ["DOM", "DOM.Iterable", "ES2022"]
   },

@@ -69,10 +69,21 @@ npm run start
 ### 공통 명령
 
 - `npm run build`: 루트 TypeScript 빌드 + 마피아 웹 클라이언트 빌드
+- `npm run build:debug`: 단계별 로그와 소요 시간을 더 자세히 출력
+- `npm run build:clean`: `dist` 정리
+- `npm run build:types`: 루트 TypeScript 컴파일만 실행
 - `npm run test`: `mafia/`, `liar/` 테스트 전체 실행
 - `npm run start`: 빌드된 봇 실행
 - `npm run db:migrate`: `DATABASE_URL` 이 설정된 경우에만 Postgres shared business DB 스키마 적용
 - `npm run build:web-client`: 마피아 웹 클라이언트만 다시 빌드
+
+빌드가 멈춘 것처럼 보일 때는 아래 순서로 병목을 바로 볼 수 있다.
+
+```bash
+npm run build:debug
+npm run build:types
+npm run build:web-client
+```
 
 ### 개발 실행
 

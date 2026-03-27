@@ -32,11 +32,16 @@ if (parsedConfig.errors.length > 0) {
   process.exit(1);
 }
 
-const program = ts.createProgram({
+if (parsedConfig.options.tsBuildInfoFile) {
+  await mkdir(dirname(parsedConfig.options.tsBuildInfoFile), { recursive: true });
+}
+
+const builder = ts.createIncrementalProgram({
   rootNames: parsedConfig.fileNames,
   options: parsedConfig.options,
 });
-const emitResult = program.emit();
+const program = builder.getProgram();
+const emitResult = builder.emit();
 const diagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
 
 if (diagnostics.length > 0) {

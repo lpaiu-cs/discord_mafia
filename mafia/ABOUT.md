@@ -1,6 +1,8 @@
 # Mafia Module
 
-이 디렉토리는 `Discord Game Bot` 안에서 웹 대시보드 기반 `마피아42 시즌4 일반·클래식`을 담당하는 모듈이다. 저장소 루트 `package.json`은 이 모듈의 실행, 빌드, 테스트를 위임한다.
+이 문서는 `mafia/` 모듈 설명서다. 저장소 루트 설치, `.env` 위치, 공통 `npm` 명령, PM2 운영은 [README.md](../README.md) 를 기준으로 본다.
+
+`mafia/` 는 `Discord Game Bot` 안에서 웹 대시보드 기반 `마피아42 시즌4 일반·클래식`을 담당한다.
 
 ## 현재 스코프
 
@@ -24,8 +26,33 @@
 
 ## Source Of Truth
 
-- 규칙의 단일 기준 문서는 `docs/RULE.md`다.
-- 엔진 구현, 웹 UI, 테스트, 운영 문서는 `docs/RULE.md`와 같은 semantics를 유지해야 한다.
+- 규칙의 단일 기준 문서는 `docs/RULE.md` 다.
+- 엔진 구현, 웹 UI, 테스트, 운영 문서는 `docs/RULE.md` 와 같은 semantics 를 유지해야 한다.
+
+## Discord / Web 역할 분리
+
+### Discord 책임
+
+- `/mafia create`
+- `/mafia dashboard`
+- 로비 생성
+- 참가 버튼
+- 게임 시작 안내
+- 개인 입장 URL ephemeral 발급
+- 공개 상태/결과 미러링
+- 게임 종료 요약 안내
+
+### Web 책임
+
+- 공개 게임 상태
+- 공개 채팅
+- 마피아/연인/망자 채팅
+- 개인 행동 UI
+- 세션/재입장 처리
+
+기존 DM 기반 진행은 기본 경로에서 제거됐다. Discord 는 로비와 링크 발급만 담당하고, 실제 조작과 비밀 정보 처리는 웹 대시보드가 맡는다.
+
+현재 유지하는 마피아 slash command 는 `/mafia create`, `/mafia dashboard` 두 개뿐이다. 참가/나가기/시작은 모두 로비 버튼으로 처리한다.
 
 ## 시간 규칙 요약
 
@@ -34,35 +61,13 @@
 - 각 생존자는 하루 한 번 `±10초` 시간 조절 가능
 - 투표 / 최후의 반론: `15초`
 
-## 아키텍처 요약
-
-- Discord 책임
-  - 로비 생성
-  - 참가 버튼
-  - 게임 시작 안내
-  - 개인 입장 URL ephemeral 발급
-  - `/mafia create`
-  - `/mafia dashboard`
-  - 공개 상태/결과 미러링
-  - 게임 종료 요약 안내
-- Web 책임
-  - 공개 게임 상태
-  - 공개 채팅
-  - 마피아/연인/망자 채팅
-  - 개인 행동 UI
-  - 세션/재입장 처리
-
-기존 DM 기반 진행은 기본 경로에서 제거됐다. Discord는 로비와 링크 발급만 담당하고, 실제 조작과 비밀 정보 처리는 웹 대시보드가 맡는다.
-
 ## 운영 전제
 
 - 현재 게임 진행 상태는 `in-memory` 로 처리한다.
 - 따라서 프로세스 재시작이나 크래시가 나면 진행 중인 판은 종료된다.
-- 대신 비즈니스 데이터는 별도 DB로 분리한다.
-  - 플레이어 전적
-  - 승패/판수
-  - 역할별 통계
-  - 길드별 매치 기록
+- 전적/유저 프로필은 두 경로 중 하나로 저장된다.
+  - `DATABASE_URL` 이 있으면 Postgres shared business DB
+  - `DATABASE_URL` 이 없으면 로컬 파일 `mafia/runtime-data/game-stats.json`
 
 ## 웹 입장 흐름
 
@@ -73,8 +78,6 @@
 5. 이후 웹 대시보드는 WebSocket 우선, 실패 시 version 기반 short polling fallback 으로 상태를 갱신
 
 ephemeral 메시지가 사라져도 `/mafia dashboard` 로 새 링크를 다시 받을 수 있다.
-
-현재 유지하는 마피아 slash command 는 `/mafia create`, `/mafia dashboard` 두 개뿐이다. 참가/나가기/시작은 모두 로비 버튼으로 처리한다.
 
 ## URL Provider
 
@@ -87,9 +90,11 @@ ephemeral 메시지가 사라져도 `/mafia dashboard` 로 새 링크를 다시 
   - `QUICK_TUNNEL_ENABLED=true`
   - Cloudflare Quick Tunnel 제약 때문에 기본 운영 경로로 두지 않는다.
 
-실시간 전송은 WebSocket을 먼저 시도하며, 불가할 경우 자동으로 version 기반 short polling으로 fallback 한다. `cloudflared` 가 PATH 에 바로 안 잡히는 경우 `CLOUDFLARED_PATH` 로 실행 파일 경로를 직접 지정할 수 있다.
+실시간 전송은 WebSocket 을 먼저 시도하며, 불가할 경우 자동으로 version 기반 short polling 으로 fallback 한다. `cloudflared` 가 PATH 에 바로 안 잡히는 경우 `CLOUDFLARED_PATH` 로 실행 파일 경로를 직접 지정할 수 있다.
 
-## 환경 변수
+## 루트 환경 변수 중 마피아 관련 항목
+
+루트 환경 변수 예시는 [`.env.example`](../.env.example) 를 본다.
 
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_APPLICATION_ID`
@@ -108,27 +113,17 @@ ephemeral 메시지가 사라져도 `/mafia dashboard` 로 새 링크를 다시 
 - `DATABASE_URL`
 - `DATABASE_SSL`
 
-## 시작 방법
+## 마피아 모듈 개발 진입점
 
-아래 명령은 저장소 루트에서 실행한다.
+아래 명령은 모두 저장소 루트에서 실행한다.
+
+### 기본 개발 실행
 
 ```bash
-npm install
-npm run db:migrate
 npm run dev:mafia
 ```
 
-- `npm run dev` 는 `npm run dev:mafia` 의 alias 다.
-- 프로덕션 빌드와 회귀 테스트도 저장소 루트에서 실행한다.
-
-```bash
-npm test
-npm run build
-```
-
-## 개발자용 1인 웹 프리뷰
-
-Discord 없이 웹 대시보드 UI 를 빠르게 확인하려면 아래 스크립트를 사용한다.
+### 1인 웹 프리뷰
 
 ```bash
 npm run dev:mafia:preview
@@ -154,47 +149,28 @@ npm run dev:mafia:preview
 - `defense`
 - `trial`
 
-지원 role:
-
-- 현재 구현 범위의 모든 직업 + `citizen`
-
-이 프리뷰는 실제 Discord 로비 흐름을 대체하지 않고, UI 와 세션/입장 흐름을 로컬에서 빠르게 점검하는 용도다.
-
-## 개발자용 연습 시뮬레이션
-
-자동 진행되는 연습 시나리오를 띄우려면:
+### 연습 시뮬레이션
 
 ```bash
 npm run dev:mafia:practice
 ```
 
-기본값은 `practice1` 이고 `http://localhost:3014` 에서 동작한다. 시나리오별 스크립트:
-
-- `practice1`: 내가 `마피아`로 시작하고 밤 마피아 채팅과 낮 공개 채팅을 본다
-- `practice2`: 내가 `정치인`으로 시작하고 보면 안 되는 비밀 채팅이 숨겨지는지 본다
-- `practice3`: 내가 `영매`로 시작하고 밤 망자 채팅이 보이는지 본다
-- `practice4`: 내가 이미 죽은 상태로 시작하고 망자 채팅 read/write 를 본다
+시나리오별 직접 실행:
 
 ```bash
 npm run dev:mafia:practice1
 npm run dev:mafia:practice2
 npm run dev:mafia:practice3
 npm run dev:mafia:practice4
+npm run dev:mafia:practice:all
 ```
 
-모든 연습 시나리오는 대략 `두 번의 낮`까지 자동화된 NPC 흐름으로 진행된다. 이 시나리오는 엔진 전체의 승패나 분기를 계산하는 실제 회귀 테스트를 대체하지 않는다. 자동 진행 중 사용자가 직접 개입할 수는 있지만, NPC는 그 개입에 반응해 분기하지 않는다.
+기본값은 `practice1` 이고 `http://localhost:3014` 에서 동작한다.
 
-주 목적은 비밀 채팅 접근 권한 판정, 투표/재판 행동 가시성, 죽은 상태의 UI 반영, 역할에 따른 카드 및 채팅 권한 갱신 검증 등 클라이언트 UI 와 서버 검증 로직 간 정합성을 빠르게 점검하는 데 있다. 예전처럼 4개를 한 번에 띄우려면 `npm run dev:mafia:practice:all` 을 사용한다.
-
-PowerShell 예시:
-
-```powershell
-$env:DEV_PRACTICE_PORT='3015'
-$env:PRACTICE_RULESET='balance'
-npm run dev:mafia:practice3
-```
-
-`dev:mafia:practice:all` 은 게임별 세션 쿠키를 따로 쓰므로 `practice1~4` 를 같은 브라우저에서 동시에 열어도 유지된다.
+- `practice1`: 내가 `마피아`로 시작하고 밤 마피아 채팅과 낮 공개 채팅을 본다
+- `practice2`: 내가 `정치인`으로 시작하고 보면 안 되는 비밀 채팅이 숨겨지는지 본다
+- `practice3`: 내가 `영매`로 시작하고 밤 망자 채팅이 보이는지 본다
+- `practice4`: 내가 이미 죽은 상태로 시작하고 망자 채팅 read/write 를 본다
 
 ## 주요 문서
 
@@ -209,14 +185,14 @@ npm run dev:mafia:practice3
 
 - 상태 갱신 정책
   - WebSocket 최우선 시도 및 오프라인/에러 시 자동 재접속
-  - WebSocket 실패/미지원 환경에서는 version 기반 short polling으로 fallback
+  - WebSocket 실패/미지원 환경에서는 version 기반 short polling 으로 fallback
   - Polling 대체 시 간격: foreground `2초`, background/inactive `7초`
-- 상태 변경 API 및 WebSocket 상태 push는 `version` 기반 최소 payload 응답을 지원한다.
+- 상태 변경 API 및 WebSocket 상태 push 는 `version` 기반 최소 payload 응답을 지원한다.
 - 세션 정책은 `최근 세션 1개만 유지` 다.
 
 ## Legacy 이미지 보정 스크립트
 
-생성형 AI 로 만든 아이콘에서 가짜 투명 배경이 텍스처로 남는 경우 `scripts/legacy-tools/remove_bg.py` 를 쓸 수 있다. 밝기를 alpha 값으로 맵핑해서 안티앨리어싱을 보존하는 방식이다.
+생성형 AI 로 만든 아이콘에서 가짜 투명 배경이 텍스처로 남는 경우 `scripts/legacy-tools/remove_bg.py` 를 쓸 수 있다.
 
 저장소 루트에서 실행 예시:
 

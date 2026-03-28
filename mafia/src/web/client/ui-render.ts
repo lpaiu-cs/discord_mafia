@@ -128,7 +128,7 @@ export const AudioManager = {
         const oldNode = this.bgmNode;
         const source = this.ctx.createBufferSource();
         source.buffer = buf;
-        source.loop = true;
+        source.loop = url !== AUDIO_FILES.ending;
         
         const gain = this.ctx.createGain();
         gain.gain.value = 0.0;

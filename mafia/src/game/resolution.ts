@@ -39,6 +39,9 @@ export async function resolveNight(game: MafiaGame, client: Client): Promise<Res
 
     if (policeAction) {
       const target = game.getPlayerOrThrow(policeAction.targetId);
+      if (target.role === "mafia") {
+        game.confirmRoleForViewer(policeAction.actorId, target.userId, "mafia", "police");
+      }
       summary.privateLines.push({
         userId: policeAction.actorId,
         line: `조사 결과: ${target.displayName} 님은 ${target.role === "mafia" ? "마피아입니다." : "마피아가 아닙니다."}`,
@@ -90,6 +93,7 @@ export async function resolveNight(game: MafiaGame, client: Client): Promise<Res
       if (protectedId === finalVictimId) {
         game.queueAudioCue("doctor_save");
         summary.publicLines.push("의사의 치료로 아무도 죽지 않았습니다.");
+        summary.publicLines.push(`${finalVictim.displayName} 님이 의사의 치료를 통해 살아났습니다!`);
       } else if (finalVictim.role === "soldier" && !finalVictim.soldierUsed && !soldierBlocked) {
         finalVictim.soldierUsed = true;
         summary.publicLines.push("군인의 방탄이 발동해 아무도 죽지 않았습니다.");

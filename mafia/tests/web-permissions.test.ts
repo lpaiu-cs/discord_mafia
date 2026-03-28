@@ -249,6 +249,87 @@ test("상태 패널 좌석은 참가 순서와 닉네임을 유지하고 빈 자
   assert.equal(state.room.seats[7].displayName, null);
 });
 
+test("건달 협박 표시는 협박당한 본인에게만 보인다", () => {
+  const game = createTestGame();
+  seedPlayers(game, [
+    { userId: "thug", role: "thug", displayName: "건달" },
+    { userId: "target", role: "citizen", displayName: "대상" },
+    { userId: "other", role: "doctor", displayName: "다른이" },
+  ]);
+  game.bulliedToday.add("target");
+
+  const otherState = buildDashboardState(game, "other").state!;
+  const targetState = buildDashboardState(game, "target").state!;
+
+  assert.equal(otherState.room.seats.find((seat) => seat.userId === "target")?.bullied, false);
+  assert.equal(targetState.room.seats.find((seat) => seat.userId === "target")?.bullied, true);
+});
+
+test("대시보드는 자기 직업 메모를 고정해서 내려준다", () => {
+  const game = createTestGame();
+  seedPlayers(game, [
+    { userId: "mafia", role: "mafia", displayName: "루나" },
+    { userId: "citizen", role: "citizen", displayName: "민재" },
+  ]);
+
+  const state = buildDashboardState(game, "mafia").state!;
+  const viewerSeat = state.room.seats.find((seat) => seat.userId === "mafia");
+
+  assert.equal(viewerSeat?.memoRole, "mafia");
+  assert.equal(viewerSeat?.memoLocked, true);
+  assert.equal(viewerSeat?.memoLockedReason, "내 직업");
+});
+
+test("경찰이 확정한 마피아 직업은 조사한 본인 메모에만 고정된다", () => {
+  const game = createTestGame();
+  seedPlayers(game, [
+    { userId: "police", role: "police", displayName: "경찰" },
+    { userId: "mafia", role: "mafia", displayName: "마피아" },
+    { userId: "other", role: "doctor", displayName: "다른이" },
+  ]);
+  game.confirmRoleForViewer("police", "mafia", "mafia", "police");
+
+  const policeState = buildDashboardState(game, "police").state!;
+  const otherState = buildDashboardState(game, "other").state!;
+
+  assert.equal(policeState.room.seats.find((seat) => seat.userId === "mafia")?.memoRole, "mafia");
+  assert.equal(policeState.room.seats.find((seat) => seat.userId === "mafia")?.memoLockedReason, "경찰 조사로 확정");
+  assert.equal(otherState.room.seats.find((seat) => seat.userId === "mafia")?.memoRole, null);
+});
+
+test("기자 기사로 공개된 직업은 모두의 메모에 고정된다", async () => {
+  const game = createTestGame();
+  seedPlayers(game, [
+    { userId: "reporter", role: "reporter", displayName: "기자" },
+    { userId: "target", role: "doctor", displayName: "대상" },
+    { userId: "other", role: "citizen", displayName: "다른이" },
+  ]);
+  game.phase = "discussion";
+  game.dayNumber = 2;
+  game.pendingArticle = {
+    actorId: "reporter",
+    targetId: "target",
+    role: "doctor",
+    publishFromDay: 2,
+  };
+  game["sendOrUpdateStatus"] = async () => undefined;
+  game["getPublicChannel"] = async () =>
+    ({
+      async send() {
+        return undefined;
+      },
+    }) as any;
+
+  await game.publishReporterArticle({} as any, "reporter");
+
+  const otherState = buildDashboardState(game, "other").state!;
+  const targetSeat = otherState.room.seats.find((seat) => seat.userId === "target");
+
+  assert.equal(targetSeat?.memoRole, "doctor");
+  assert.equal(targetSeat?.memoLocked, true);
+  assert.equal(targetSeat?.memoLockedReason, "기자 기사로 확정");
+});
+
 test("종료 상태는 승패와 역할 공개 요약을 포함한다", () => {
   const game = createTestGame();
   seedPlayers(game, [

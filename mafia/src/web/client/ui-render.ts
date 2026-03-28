@@ -247,23 +247,59 @@ function showPhaseOverlay(phaseName: string, label: string) {
 
 // --- Icons & Labels ---
 export const ROLE_ICONS = [
-  { key: "mafia", label: "마피아", team: "mafia" },
-  { key: "spy", label: "스파이", team: "mafia" },
-  { key: "beastman", label: "짐승인간", team: "mafia" },
-  { key: "hostess", label: "마담", team: "mafia" },
-  { key: "police", label: "경찰", team: "citizen" },
-  { key: "doctor", label: "의사", team: "citizen" },
-  { key: "soldier", label: "군인", team: "citizen" },
-  { key: "politician", label: "정치인", team: "citizen" },
-  { key: "medium", label: "영매", team: "citizen" },
-  { key: "lover", label: "연인", team: "citizen" },
-  { key: "gangster", label: "건달", team: "citizen" },
-  { key: "reporter", label: "기자", team: "citizen" },
-  { key: "detective", label: "탐정", team: "citizen" },
-  { key: "ghoul", label: "도굴꾼", team: "citizen" },
-  { key: "terrorist", label: "테러리스트", team: "citizen" },
-  { key: "priest", label: "성직자", team: "citizen" },
+  { role: "mafia", iconKey: "mafia", label: "마피아", team: "mafia" },
+  { role: "spy", iconKey: "spy", label: "스파이", team: "mafia" },
+  { role: "beastman", iconKey: "beastman", label: "짐승인간", team: "mafia" },
+  { role: "madam", iconKey: "hostess", label: "마담", team: "mafia" },
+  { role: "police", iconKey: "police", label: "경찰", team: "citizen" },
+  { role: "doctor", iconKey: "doctor", label: "의사", team: "citizen" },
+  { role: "soldier", iconKey: "soldier", label: "군인", team: "citizen" },
+  { role: "politician", iconKey: "politician", label: "정치인", team: "citizen" },
+  { role: "medium", iconKey: "medium", label: "영매", team: "citizen" },
+  { role: "lover", iconKey: "lover", label: "연인", team: "citizen" },
+  { role: "thug", iconKey: "gangster", label: "건달", team: "citizen" },
+  { role: "reporter", iconKey: "reporter", label: "기자", team: "citizen" },
+  { role: "detective", iconKey: "detective", label: "탐정", team: "citizen" },
+  { role: "graverobber", iconKey: "ghoul", label: "도굴꾼", team: "citizen" },
+  { role: "terrorist", iconKey: "terrorist", label: "테러리스트", team: "citizen" },
+  { role: "priest", iconKey: "priest", label: "성직자", team: "citizen" },
 ];
+
+const LEGACY_MEMO_ROLE_MAP: Record<string, string> = {
+  hostess: "madam",
+  gangster: "thug",
+  ghoul: "graverobber",
+};
+
+function normalizeMemoRole(role?: string | null): string | null {
+  if (!role) {
+    return null;
+  }
+
+  return LEGACY_MEMO_ROLE_MAP[role] ?? role;
+}
+
+function memoRoleDefinition(role?: string | null) {
+  const normalizedRole = normalizeMemoRole(role);
+  if (!normalizedRole) {
+    return null;
+  }
+
+  const predefined = ROLE_ICONS.find((entry) => entry.role === normalizedRole);
+  if (predefined) {
+    return predefined;
+  }
+
+  if (normalizedRole === "citizen") {
+    return { role: normalizedRole, iconKey: null, label: "시민", team: "citizen" as const };
+  }
+
+  if (normalizedRole === "evil") {
+    return { role: normalizedRole, iconKey: null, label: "악인", team: "mafia" as const };
+  }
+
+  return null;
+}
 
 export function roleIconUrl(key: string) {
   return "/resource/roles/" + key + "_icon.png";
@@ -319,7 +355,15 @@ const getMemoKey = () => "mafia_memos_" + (currentState?.room?.gameId || "defaul
 export const seatMemos: Record<number, string> = (() => {
   try {
     const raw = localStorage.getItem(getMemoKey());
-    return raw ? Object.assign(Object.create(null), JSON.parse(raw)) : Object.create(null);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const normalized = Object.create(null) as Record<number, string>;
+    for (const [seat, role] of Object.entries(parsed ?? {})) {
+      const normalizedRole = normalizeMemoRole(String(role));
+      if (normalizedRole) {
+        normalized[Number(seat)] = normalizedRole;
+      }
+    }
+    return normalized;
   } catch { return Object.create(null); }
 })();
 export function saveMemos() {
@@ -492,12 +536,12 @@ export function renderStateSection(state: GameState) {
   const actionMarkers = collectSeatActionMarkers(state);
   
   const team = teamClass(state);
-  const roleIcon = ROLE_ICONS.find((role) => role.label === state.viewer.roleLabel);
+  const roleIcon = memoRoleDefinition(state.viewer.role);
   updateHtml(body, `
     ${!state.viewer.alive ? '<div class="spectator-banner">관전 중입니다</div>' : ""}
     <div class="viewer-card viewer-card--${team}${!state.viewer.alive ? " viewer-card--dead" : ""}">
       <div style="display:flex;gap:12px;align-items:flex-start;">
-        ${roleIcon ? `<img src="${roleIconUrl(roleIcon.key)}" alt="" style="width:42px;height:42px;border-radius:10px;object-fit:contain;flex-shrink:0;opacity:0.92;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" />` : ""}
+        ${roleIcon?.iconKey ? `<img src="${roleIconUrl(roleIcon.iconKey)}" alt="" style="width:42px;height:42px;border-radius:10px;object-fit:contain;flex-shrink:0;opacity:0.92;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" />` : ""}
         <div>
           <strong>내 정보</strong>
           <div>직업: ${escapeHtml(state.viewer.roleLabel)}</div>
@@ -581,7 +625,7 @@ function seatCard(state: GameState, seat: Seat, actionMarkers: SeatActionMarkerM
       <div class="seat-avatar ${nickClass}">${seat.seat}</div>
       ${markerHtml}
       <div class="seat-flags" style="position:absolute;top:26px;left:4px;z-index:4;flex-direction:column;">${flags.join("")}</div>
-      ${seatMemoHtml(seat.seat)}
+      ${seatMemoHtml(seat)}
       <div class="seat-name ${nickClass}">${escapeHtml(seat.displayName || "")}</div>
     </div>
   `;
@@ -604,23 +648,79 @@ function seatActionMarkersHtml(markers?: { iconUrl: string; label: string }[]) {
   `;
 }
 
-function seatMemoHtml(seatNum: number) {
-  const memoKey = seatMemos[seatNum];
-  if (memoKey) {
-    return `<div class="seat-memo"><img src="${roleIconUrl(memoKey)}" alt="memo" /></div>`;
+function effectiveSeatMemo(seat?: Seat | null) {
+  if (!seat || seat.empty) {
+    return null;
+  }
+
+  if (seat.memoRole) {
+    const definition = memoRoleDefinition(seat.memoRole);
+    return {
+      role: normalizeMemoRole(seat.memoRole),
+      label: seat.memoRoleLabel ?? definition?.label ?? seat.memoRole,
+      iconKey: definition?.iconKey ?? null,
+      locked: Boolean(seat.memoLocked),
+      lockedReason: seat.memoLockedReason ?? null,
+    };
+  }
+
+  const manualRole = normalizeMemoRole(seatMemos[seat.seat]);
+  if (!manualRole) {
+    return null;
+  }
+
+  const definition = memoRoleDefinition(manualRole);
+  return {
+    role: manualRole,
+    label: definition?.label ?? manualRole,
+    iconKey: definition?.iconKey ?? null,
+    locked: false,
+    lockedReason: null,
+  };
+}
+
+function memoBadgeHtml(memo: { label: string; iconKey?: string | null }, className = "seat-memo"): string {
+  if (memo.iconKey) {
+    return `<div class="${className}"><img src="${roleIconUrl(memo.iconKey)}" alt="${escapeAttribute(memo.label)}" /></div>`;
+  }
+
+  return `<div class="${className} ${className}--text">${escapeHtml(memo.label)}</div>`;
+}
+
+function seatMemoHtml(seat: Seat) {
+  const memo = effectiveSeatMemo(seat);
+  if (memo) {
+    return memoBadgeHtml(memo);
   }
   return '<div class="seat-memo seat-memo--empty">?</div>';
 }
 
 export function renderMemoOverlay(seatNum: number) {
-  const currentMemo = seatMemos[seatNum] || null;
   const seat = currentState?.room.seats.find((s) => s.seat === seatNum);
   const displayName = seat && !seat.empty ? seat.displayName : "#" + seatNum;
+  const effectiveMemo = effectiveSeatMemo(seat);
+  if (seat?.memoLocked && effectiveMemo) {
+    return `<div class="memo-overlay" data-memo-overlay>
+      <div class="memo-sheet">
+        <div class="memo-sheet-head">
+          <h3>${escapeHtml(displayName || "")} 추리 메모</h3>
+          <button type="button" class="memo-close-btn" data-memo-close>✕</button>
+        </div>
+        <div class="memo-fixed-card">
+          ${memoBadgeHtml(effectiveMemo, "memo-fixed-badge")}
+          <strong>${escapeHtml(effectiveMemo.label)}</strong>
+          ${effectiveMemo.lockedReason ? `<div class="memo-fixed-note">${escapeHtml(effectiveMemo.lockedReason)}</div>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const currentMemo = normalizeMemoRole(seatMemos[seatNum]) || null;
   const cells = ROLE_ICONS.map((role) => {
-    const selected = currentMemo === role.key ? " is-selected" : "";
+    const selected = currentMemo === role.role ? " is-selected" : "";
     const teamCls = role.team === "mafia" ? " is-mafia-role" : "";
-    return `<div class="memo-role-cell${selected}${teamCls}" data-memo-role="${role.key}">
-      <img class="memo-role-icon" src="${roleIconUrl(role.key)}" alt="${escapeHtml(role.label)}" />
+    return `<div class="memo-role-cell${selected}${teamCls}" data-memo-role="${role.role}">
+      <img class="memo-role-icon" src="${roleIconUrl(role.iconKey)}" alt="${escapeHtml(role.label)}" />
       <div class="memo-role-name">${escapeHtml(role.label)}</div>
     </div>`;
   }).join("");
@@ -792,6 +892,12 @@ export function renderNow(state: GameState) {
   renderActionsSection(state);
   renderSecretSection(state);
   renderLogsSection(state);
+  if (memoOverlayTarget != null && document.querySelector("[data-memo-overlay]")) {
+    const existingOverlay = document.querySelector("[data-memo-overlay]");
+    if (existingOverlay instanceof HTMLElement) {
+      existingOverlay.outerHTML = renderMemoOverlay(memoOverlayTarget);
+    }
+  }
 
   restoreChatDraftState(focusedChat);
   restoreActionDraftState(actionDrafts);

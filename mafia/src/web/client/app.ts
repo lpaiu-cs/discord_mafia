@@ -106,12 +106,19 @@ document.addEventListener("click", async (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
+  const lockedMemoSeat =
+    memoOverlayTarget != null ? currentState.room.seats.find((seat) => seat.seat === memoOverlayTarget && seat.memoLocked) : null;
+
   if (target.closest("[data-memo-close]")) {
     closeMemoOverlay();
     return;
   }
 
   if (target.closest("[data-memo-clear]")) {
+    if (lockedMemoSeat) {
+      showToast("확정된 메모는 수정할 수 없습니다.", "info");
+      return;
+    }
     if (memoOverlayTarget != null) {
       delete seatMemos[memoOverlayTarget];
       saveMemos();
@@ -123,6 +130,10 @@ document.addEventListener("click", async (event) => {
 
   const memoRoleCell = target.closest("[data-memo-role]");
   if (memoRoleCell instanceof HTMLElement) {
+    if (lockedMemoSeat) {
+      showToast("확정된 메모는 수정할 수 없습니다.", "info");
+      return;
+    }
     const roleKey = memoRoleCell.dataset.memoRole;
     if (memoOverlayTarget != null && roleKey) {
       seatMemos[memoOverlayTarget] = roleKey;

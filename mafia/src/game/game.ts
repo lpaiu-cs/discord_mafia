@@ -132,6 +132,13 @@ interface QueuedAudioCue extends VisibleAudioCue {
   recipientIds: string[] | null;
 }
 
+type ConfirmedMemoSource = "police" | "reporter";
+
+interface ConfirmedMemoEntry {
+  role: Role;
+  source: ConfirmedMemoSource;
+}
+
 export interface GameRegistry {
   onGameStateChange?: (gameId: string) => void;
   get(guildId: string): MafiaGame | undefined;
@@ -210,6 +217,8 @@ export class MafiaGame {
   };
   readonly privateLogs = new Map<string, WebPrivateLogEntry[]>();
   readonly audioCues: QueuedAudioCue[] = [];
+  readonly publicConfirmedMemos = new Map<string, ConfirmedMemoEntry>();
+  readonly privateConfirmedMemos = new Map<string, Map<string, ConfirmedMemoEntry>>();
 
   phase: Phase = "lobby";
   phaseContext: PhaseContext | null = null;
@@ -315,6 +324,25 @@ export class MafiaGame {
     });
     this.privateLogs.set(userId, entries);
     this.bumpStateVersion();
+  }
+
+  public confirmRoleForViewer(userId: string, targetId: string, role: Role, source: ConfirmedMemoSource): void {
+    const confirmed = this.privateConfirmedMemos.get(userId) ?? new Map<string, ConfirmedMemoEntry>();
+    confirmed.set(targetId, { role, source });
+    this.privateConfirmedMemos.set(userId, confirmed);
+  }
+
+  public confirmRoleForEveryone(targetId: string, role: Role, source: ConfirmedMemoSource): void {
+    this.publicConfirmedMemos.set(targetId, { role, source });
+  }
+
+  public getConfirmedRoleForViewer(userId: string, targetId: string): ConfirmedMemoEntry | null {
+    const privateEntry = this.privateConfirmedMemos.get(userId)?.get(targetId);
+    if (privateEntry) {
+      return privateEntry;
+    }
+
+    return this.publicConfirmedMemos.get(targetId) ?? null;
   }
 
   public setPublicLines(lines: string[], chatLines: string[] = lines): void {
@@ -742,13 +770,15 @@ export class MafiaGame {
       throw new Error("지금 공개할 수 있는 기사가 없습니다.");
     }
 
-    const articleLine = `기자 기사: ${this.getPlayerOrThrow(this.pendingArticle.targetId).displayName} 님의 직업은 ${getRoleLabel(this.pendingArticle.role)}입니다.`;
+    const pendingArticle = this.pendingArticle;
+    const articleLine = `기자 기사: ${this.getPlayerOrThrow(pendingArticle.targetId).displayName} 님의 직업은 ${getRoleLabel(pendingArticle.role)}입니다.`;
     const channel = await this.getPublicChannel(client);
     await channel.send({
       embeds: [new EmbedBuilder().setColor(Colors.Blurple).setTitle("기자 기사").setDescription(articleLine)],
     });
 
     this.queueAudioCue("camera_shutter");
+    this.confirmRoleForEveryone(pendingArticle.targetId, pendingArticle.role, "reporter");
     this.pendingArticle = null;
     this.appendPublicLine(articleLine);
     await this.sendOrUpdateStatus(client);
@@ -1005,8 +1035,13 @@ export class MafiaGame {
       description:
         this.deliveryMode === "web" ? "웹 대시보드에서 한 명을 선택해 주세요." : "드롭다운으로 한 명을 선택해 주세요.",
       components: this.deliveryMode === "web" ? [] : [this.buildVoteControls()],
-      extraLines: this.bulliedToday.size > 0 ? [`협박 대상: ${this.formatNames([...this.bulliedToday])}`] : undefined,
     });
+  }
+
+  public async notifyBulliedPlayers(client: Client): Promise<void> {
+    for (const userId of this.bulliedToday) {
+      await this.safeSendDm(client, userId, "건달에게 협박당해 오늘은 투표와 찬반 투표를 할 수 없습니다.");
+    }
   }
 
   public async sendMadamPrompt(client: Client): Promise<void> {
@@ -1463,7 +1498,7 @@ export class MafiaGame {
 
   public buildStatusEmbed(): EmbedBuilder {
     const alive = this.alivePlayers
-      .map((player, index) => `${index + 1}. ${player.displayName}${this.bulliedToday.has(player.userId) ? " (협박)" : ""}`)
+      .map((player, index) => `${index + 1}. ${player.displayName}`)
       .join("\n") || "없음";
     const dead = this.deadPlayers
       .map((player) => `${player.displayName}${player.ascended ? " (성불)" : ""}`)

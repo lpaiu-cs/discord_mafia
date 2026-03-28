@@ -108,6 +108,7 @@ export async function startVote(game: MafiaGame, client: Client): Promise<void> 
     }
     game.setPublicLines(["투표 시간입니다."]);
 
+    await game.notifyBulliedPlayers(client);
     await game.sendVotePrompt(client);
     await game.sendMadamPrompt(client);
     await game.sendOrUpdateStatus(client);

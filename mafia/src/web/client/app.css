@@ -1063,14 +1063,29 @@
         pointer-events: none;
       }
 
-      .seat-memo img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        display: block;
-        opacity: 0.88;
-        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
-      }
+        .seat-memo img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+          opacity: 0.88;
+          filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+        }
+
+        .seat-memo--text {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 4px;
+          background: rgba(15, 18, 24, 0.92);
+          color: var(--text);
+          font-size: 0.66rem;
+          font-weight: 800;
+          line-height: 1.05;
+          text-align: center;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
 
       .seat-memo--empty {
         display: none;
@@ -1208,12 +1223,49 @@
         margin-top: 10px;
       }
 
-      .memo-clear-row button {
-        background: rgba(255, 255, 255, 0.08) !important;
-        color: var(--muted) !important;
-        font-weight: 600 !important;
-        min-height: 42px !important;
-      }
+        .memo-clear-row button {
+          background: rgba(255, 255, 255, 0.08) !important;
+          color: var(--muted) !important;
+          font-weight: 600 !important;
+          min-height: 42px !important;
+        }
+
+        .memo-fixed-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          padding: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.04);
+          text-align: center;
+        }
+
+        .memo-fixed-badge {
+          width: 92px;
+          aspect-ratio: 1 / 1;
+          border-radius: 16px;
+          overflow: hidden;
+        }
+
+        .memo-fixed-badge img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+
+        .memo-fixed-badge.memo-fixed-badge--text {
+          font-size: 0.92rem;
+          padding: 12px;
+        }
+
+        .memo-fixed-note {
+          color: var(--muted);
+          font-size: 0.78rem;
+          font-weight: 600;
+        }
 
       .action-grid-name {
         font-size: 0.68rem;

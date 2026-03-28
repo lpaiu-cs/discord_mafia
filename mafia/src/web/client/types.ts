@@ -7,6 +7,10 @@ export interface Seat {
   displayName?: string;
   bullied?: boolean;
   ascended?: boolean;
+  memoRole?: string | null;
+  memoRoleLabel?: string | null;
+  memoLocked?: boolean;
+  memoLockedReason?: string | null;
 }
 
 export interface RoomState {

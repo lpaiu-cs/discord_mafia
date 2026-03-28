@@ -89,6 +89,10 @@ export interface DashboardStatePayload {
       alive: boolean;
       bullied: boolean;
       ascended: boolean;
+      memoRole: string | null;
+      memoRoleLabel: string | null;
+      memoLocked: boolean;
+      memoLockedReason: string | null;
       isViewer: boolean;
       empty: boolean;
     }>;
@@ -223,26 +227,37 @@ export function buildDashboardState(
             alive: false,
             bullied: false,
             ascended: false,
+            memoRole: null,
+            memoRoleLabel: null,
+            memoLocked: false,
+            memoLockedReason: null,
             isViewer: false,
             empty: true,
           };
         }
+
+        const memoInfo = resolveSeatMemoInfo(game, userId, seatPlayer);
+        const isViewerSeat = seatPlayer.userId === userId;
 
         return {
           seat: index + 1,
           userId: seatPlayer.userId,
           displayName: seatPlayer.displayName,
           alive: seatPlayer.alive,
-          bullied: game.bulliedToday.has(seatPlayer.userId),
+          bullied: isViewerSeat && game.bulliedToday.has(seatPlayer.userId),
           ascended: seatPlayer.ascended,
-          isViewer: seatPlayer.userId === userId,
+          memoRole: memoInfo?.role ?? null,
+          memoRoleLabel: memoInfo ? getRoleLabel(memoInfo.role) : null,
+          memoLocked: Boolean(memoInfo),
+          memoLockedReason: memoInfo ? memoReasonLabel(memoInfo.source) : null,
+          isViewer: isViewerSeat,
           empty: false,
         };
       }),
       alivePlayers: game.alivePlayers.map((alivePlayer) => ({
         userId: alivePlayer.userId,
         displayName: alivePlayer.displayName,
-        bullied: game.bulliedToday.has(alivePlayer.userId),
+        bullied: alivePlayer.userId === userId && game.bulliedToday.has(alivePlayer.userId),
       })),
       deadPlayers: game.deadPlayers.map((deadPlayer) => ({
         userId: deadPlayer.userId,
@@ -291,6 +306,33 @@ export function buildDashboardState(
     serverNow,
     state,
   };
+}
+
+function resolveSeatMemoInfo(
+  game: MafiaGame,
+  viewerId: string,
+  target: PlayerState,
+): { role: PlayerState["role"]; source: "self" | "police" | "reporter" } | null {
+  if (viewerId === target.userId) {
+    return { role: target.role, source: "self" };
+  }
+
+  const confirmed = game.getConfirmedRoleForViewer(viewerId, target.userId);
+  if (!confirmed) {
+    return null;
+  }
+
+  return confirmed;
+}
+
+function memoReasonLabel(source: "self" | "police" | "reporter"): string {
+  if (source === "self") {
+    return "내 직업";
+  }
+  if (source === "police") {
+    return "경찰 조사로 확정";
+  }
+  return "기자 기사로 확정";
 }
 
 function buildPersonalStatsView(

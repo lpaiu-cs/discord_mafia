@@ -105,6 +105,33 @@ function createFakeSelectInteraction(customId: string, overrides: Partial<any> =
   return { interaction, replies };
 }
 
+function createFakeButtonInteraction(customId: string, overrides: Partial<any> = {}) {
+  const replies: Array<{ content: string; flags?: number }> = [];
+  const interaction = {
+    customId,
+    guildId: "guild-1",
+    guild: {
+      members: {
+        fetch: async () => ({ displayName: "방장" }),
+      },
+    },
+    channelId: "channel-1",
+    channel: overrides.channel,
+    user: { id: "host", username: "방장" },
+    deferred: false,
+    replied: false,
+    async reply(payload: { content: string; flags?: number }) {
+      replies.push(payload);
+    },
+    async followUp(payload: { content: string; flags?: number }) {
+      replies.push(payload);
+    },
+    ...overrides,
+  };
+
+  return { interaction, replies };
+}
+
 function createServiceWithGame() {
   const service = new LiarDiscordService() as any;
   const game = service.registry.create({
@@ -281,16 +308,13 @@ test("종료된 게임은 onGameEnded 콜백을 한 번만 호출한다", async 
   assert.deepEqual(endedGames, [game.id]);
 });
 
-test("로비의 규칙 모드 선택 메뉴로 modeB 를 고를 수 있다", async () => {
+test("로비의 모드 버튼으로 modeB 를 고를 수 있다", async () => {
   const { service, game } = createServiceWithGame();
   const channel = createFakeChannel();
   const client = { channels: { fetch: async () => channel } } as any;
-  const { interaction, replies } = createFakeSelectInteraction(`liar-mode:${game.id}`, {
-    channel,
-    values: ["modeB"],
-  });
+  const { interaction, replies } = createFakeButtonInteraction(`liar:modeB:${game.id}`, { channel });
 
-  const handled = await service.handleSelect(client, interaction as any);
+  const handled = await service.handleButton(client, interaction as any);
 
   assert.equal(handled, true);
   assert.equal(game.mode, "modeB");
@@ -309,6 +333,16 @@ test("modeB 에서는 카테고리 선택 메뉴를 직접 사용할 수 없다"
   });
 
   await assert.rejects(() => service.handleSelect(client, interaction as any), /모드B에서는 카테고리를 직접 고르지 않습니다/);
+});
+
+test("modeA 일 때만 카테고리 선택 메뉴가 렌더링된다", async () => {
+  const { service, game } = createServiceWithGame();
+  const modeAComponents = (service as any).buildStatusPayload(game).components;
+  assert.equal(modeAComponents.length, 3);
+
+  game.setMode("modeB");
+  const modeBComponents = (service as any).buildStatusPayload(game).components;
+  assert.equal(modeBComponents.length, 2);
 });
 
 test("/liar create 는 새 로비 임베드 상태 메시지를 띄운다", async () => {

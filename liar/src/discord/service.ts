@@ -211,6 +211,14 @@ export class LiarDiscordService {
         }
         return true;
       }
+      case "modeA":
+      case "modeB": {
+        this.assertHost(interaction.user.id, game);
+        game.setMode(action);
+        await this.replyEphemeral(interaction, `규칙 모드를 ${liarModeLabel(game.mode)} 로 바꿨습니다.`);
+        await this.resetPhaseState(client, game, interaction.channel ?? null);
+        return true;
+      }
       case "start": {
         this.assertHost(interaction.user.id, game);
         game.start(Math.random, {
@@ -280,7 +288,7 @@ export class LiarDiscordService {
   }
 
   async handleSelect(client: Client, interaction: StringSelectMenuInteraction): Promise<boolean> {
-    if (!interaction.customId.startsWith("liar-category:") && !interaction.customId.startsWith("liar-mode:")) {
+    if (!interaction.customId.startsWith("liar-category:")) {
       return false;
     }
 
@@ -293,19 +301,12 @@ export class LiarDiscordService {
     this.assertGameChannel(interaction.channelId, game);
     this.assertHost(interaction.user.id, game);
 
-    if (kind === "liar-category") {
-      if (game.mode === "modeB") {
-        throw new Error("모드B에서는 카테고리를 직접 고르지 않습니다.");
-      }
-
-      game.setCategory(interaction.values[0]);
-      await this.replyEphemeral(interaction, `카테고리를 ${game.category.label} 로 바꿨습니다.`);
-      await this.resetPhaseState(client, game, interaction.channel ?? null);
-      return true;
+    if (game.mode === "modeB") {
+      throw new Error("모드B에서는 카테고리를 직접 고르지 않습니다.");
     }
 
-    game.setMode(interaction.values[0] as LiarMode);
-    await this.replyEphemeral(interaction, `규칙 모드를 ${liarModeLabel(game.mode)} 로 바꿨습니다.`);
+    game.setCategory(interaction.values[0]);
+    await this.replyEphemeral(interaction, `카테고리를 ${game.category.label} 로 바꿨습니다.`);
     await this.resetPhaseState(client, game, interaction.channel ?? null);
     return true;
   }
@@ -821,41 +822,34 @@ export class LiarDiscordService {
       );
       rows.push(controlRow);
 
-      const categoryRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`liar-category:${game.id}`)
-          .setPlaceholder(
-            game.mode === "modeB"
-              ? "모드B에서는 시민/라이어 카테고리가 시작 시 자동 배정됩니다."
-              : `카테고리 선택 (현재: ${game.category.label})`,
-          )
-          .setDisabled(game.mode === "modeB")
-          .addOptions(
-            getLiarCategories(game.guildId).map((category) =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(category.label)
-                .setValue(category.id)
-                .setDefault(category.id === game.categoryId),
-            ),
-          ),
-      );
-      rows.push(categoryRow);
-
-      const modeRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`liar-mode:${game.id}`)
-          .setPlaceholder(`규칙 모드 선택 (현재: ${liarModeLabel(game.mode)})`)
-          .addOptions(
-            this.buildModeOptions().map((mode) =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(`${liarModeLabel(mode.id)} · ${mode.shortLabel}`)
-                .setDescription(mode.description)
-                .setValue(mode.id)
-                .setDefault(mode.id === game.mode),
-            ),
-          ),
+      const modeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`liar:modeA:${game.id}`)
+          .setLabel("모드A")
+          .setStyle(game.mode === "modeA" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(`liar:modeB:${game.id}`)
+          .setLabel("모드B")
+          .setStyle(game.mode === "modeB" ? ButtonStyle.Primary : ButtonStyle.Secondary),
       );
       rows.push(modeRow);
+
+      if (game.mode === "modeA") {
+        const categoryRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`liar-category:${game.id}`)
+            .setPlaceholder(`카테고리 선택 (현재: ${game.category.label})`)
+            .addOptions(
+              getLiarCategories(game.guildId).map((category) =>
+                new StringSelectMenuOptionBuilder()
+                  .setLabel(category.label)
+                  .setValue(category.id)
+                  .setDefault(category.id === game.categoryId),
+              ),
+            ),
+        );
+        rows.push(categoryRow);
+      }
       return rows;
     }
 
@@ -1061,8 +1055,8 @@ export class LiarDiscordService {
       "4명 이상이 되면 방장이 시작할 수 있습니다.",
       "참가/나가기는 아래 버튼으로 처리합니다.",
       game.mode === "modeA"
-        ? "카테고리와 규칙 모드는 아래 메뉴에서 바꿉니다."
-        : "규칙 모드는 아래 메뉴에서 바꾸고, 모드B의 시민/라이어 카테고리는 시작 시 자동 배정됩니다.",
+        ? "아래 모드 버튼에서 모드를 고르고, 모드A일 때만 카테고리 메뉴가 열립니다."
+        : "아래 모드 버튼에서 규칙을 바꾸며, 모드B의 시민/라이어 카테고리는 시작 시 자동 배정됩니다.",
       liarModeSummary(game.mode),
     ];
     const cannotStartReason = game.getStartConfigurationError();
@@ -1139,21 +1133,6 @@ export class LiarDiscordService {
       default:
         return Colors.Blurple;
     }
-  }
-
-  private buildModeOptions(): Array<{ id: LiarMode; shortLabel: string; description: string }> {
-    return [
-      {
-        id: "modeA",
-        shortLabel: "라이어 공개형",
-        description: "라이어는 자신이 라이어임을 알고 제시어를 받지 않습니다.",
-      },
-      {
-        id: "modeB",
-        shortLabel: "크로스 카테고리형",
-        description: "라이어는 자신이 라이어인지 모른 채 다른 카테고리의 제시어를 받습니다.",
-      },
-    ];
   }
 
   private buildExcludedWordsByCategoryId(guildId: string): ReadonlyMap<string, readonly string[]> {

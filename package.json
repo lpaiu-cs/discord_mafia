@@ -1,6 +1,6 @@
 {
   "name": "discord_game_bot",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Discord game bot platform with isolated mafia and liar modules",
   "main": "dist/mafia/src/index.js",
   "scripts": {

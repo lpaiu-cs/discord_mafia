@@ -1,12 +1,12 @@
 {
   "name": "discord_game_bot",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "Discord game bot platform with isolated mafia and liar modules",
   "main": "dist/mafia/src/index.js",
   "scripts": {
     "build": "node scripts/run-build.mjs",
     "build:debug": "node scripts/run-build.mjs --debug",
-    "build:clean": "node -e \"const fs=require('node:fs'); fs.mkdirSync('mafia/.cache', { recursive: true }); fs.rmSync('dist', { recursive: true, force: true })\"",
+    "build:clean": "node -e \"const fs=require('node:fs'); fs.mkdirSync('mafia/.cache', { recursive: true }); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('mafia/.cache/root-build.tsbuildinfo', { force: true }); fs.rmSync('mafia/.cache/web-client-build.tsbuildinfo', { force: true })\"",
     "build:types": "tsc -p tsconfig.json",
     "build:web-client": "node mafia/scripts/build-web-client.mjs",
     "db:migrate": "tsx mafia/src/db/migrate.ts",

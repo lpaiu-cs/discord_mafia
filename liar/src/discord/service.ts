@@ -138,10 +138,11 @@ export class LiarDiscordService {
     if (!interaction.guildId || !interaction.guild) {
       throw new Error("서버 안에서만 사용할 수 있습니다.");
     }
+    const guildId = interaction.guildId;
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    let game = this.registry.get(interaction.guildId);
+    let game = this.registry.get(guildId);
     if (game && game.phase !== "ended") {
       throw new Error("이 서버에는 이미 라이어게임이 진행 중입니다.");
     }
@@ -150,7 +151,7 @@ export class LiarDiscordService {
     if (endedGame) {
       this.clearGameRuntimeState(endedGame.id);
       await this.safelyRunAudio(() => this.audioController.destroy(endedGame.guildId), endedGame.guildId);
-      this.registry.delete(interaction.guildId);
+      this.registry.delete(guildId);
     }
 
     const member = await interaction.guild.members.fetch(interaction.user.id);
@@ -159,12 +160,13 @@ export class LiarDiscordService {
       throw new Error("라이어게임 로비를 만들려면 먼저 음성 채널에 들어가세요.");
     }
 
-    await this.syncSeenUser(interaction.guildId, interaction.guild.name, interaction.user.id, member.displayName);
+    await this.safelyRunAudio(() => this.audioController.destroy(guildId), guildId);
+    await this.syncSeenUser(guildId, interaction.guild.name, interaction.user.id, member.displayName);
 
     let createdGame: LiarGame | null = null;
     try {
       game = this.registry.create({
-        guildId: interaction.guildId,
+        guildId,
         guildName: interaction.guild.name,
         channelId: interaction.channelId,
         hostId: interaction.user.id,
@@ -177,10 +179,10 @@ export class LiarDiscordService {
       return true;
     } catch (error) {
       const failedGame = createdGame;
-      if (failedGame && this.registry.get(interaction.guildId)?.id === failedGame.id) {
+      if (failedGame && this.registry.get(guildId)?.id === failedGame.id) {
         this.clearGameRuntimeState(failedGame.id);
         await this.safelyRunAudio(() => this.audioController.destroy(failedGame.guildId), failedGame.guildId);
-        this.registry.delete(interaction.guildId);
+        this.registry.delete(guildId);
       }
 
       throw error;
@@ -713,6 +715,10 @@ export class LiarDiscordService {
       game.guildId,
     );
     await this.syncStatusMessage(client, game, preferredChannel);
+
+    if (shouldDeleteAfterSync && game.result?.winner === "cancelled") {
+      await this.safelyRunAudio(() => this.audioController.destroy(game.guildId), game.guildId);
+    }
 
     if (shouldDeleteAfterSync && this.registry.get(game.guildId)?.id === game.id) {
       this.registry.delete(game.guildId);

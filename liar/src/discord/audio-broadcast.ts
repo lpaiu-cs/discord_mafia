@@ -18,7 +18,6 @@ import { Client, Guild } from "discord.js";
 import { LiarGame } from "../engine/game";
 
 const ffmpegPath = require("ffmpeg-static") as string | null;
-const AUDIO_DEBUG_ENABLED = process.env.LIAR_AUDIO_DEBUG === "true";
 
 const PCM_SAMPLE_RATE = 48_000;
 const PCM_CHANNELS = 2;
@@ -587,10 +586,10 @@ export class DiscordVoiceLiarAudioController implements LiarAudioController {
   }
 
   private debug(guildId: string, message: string): void {
-    if (!AUDIO_DEBUG_ENABLED) {
+    if (process.env.LIAR_AUDIO_DEBUG !== "true") {
       return;
     }
 
-    console.log(`[liar-audio:${guildId}] ${message}`);
+    console.error(`[liar-audio:${guildId}] ${message}`);
   }
 }

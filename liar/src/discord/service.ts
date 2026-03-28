@@ -25,6 +25,7 @@ import { LiarAudioController, NoopLiarAudioController } from "./audio-broadcast"
 import { LIAR_CREATE_SUBCOMMAND, LIAR_STATS_SUBCOMMAND, liarCommand, liarKeywordCommand } from "./commands";
 
 const PREFIX_VOTE = "!투표";
+const PREFIX_SKIP = "!스킵";
 const LOBBY_TIMEOUT_MS = 10 * 60_000;
 const CLUE_TIMEOUT_MS = 45_000;
 const VOTING_TIMEOUT_MS = 45_000;
@@ -103,6 +104,7 @@ export class LiarDiscordService {
   private readonly warningTimers = new Map<string, NodeJS.Timeout>();
   private readonly guidanceCooldowns = new Map<string, number>();
   private readonly persistedEndedGames = new Set<string>();
+  private readonly discussionSkipVotes = new Map<string, Set<string>>();
   private readonly audioController: LiarAudioController;
 
   constructor(private readonly options: LiarDiscordServiceOptions = {}) {
@@ -396,6 +398,11 @@ export class LiarDiscordService {
       return true;
     }
 
+    if (content === PREFIX_SKIP) {
+      await this.handleDiscussionSkipMessage(client, message, game);
+      return true;
+    }
+
     if (!game.isParticipant(message.author.id)) {
       return false;
     }
@@ -576,6 +583,69 @@ export class LiarDiscordService {
     await this.syncStatusMessage(client, game, message.channel);
   }
 
+  private async handleDiscussionSkipMessage(client: Client, message: Message, game: LiarGame): Promise<void> {
+    if (game.phase !== "discussion") {
+      await this.sendGuidanceMessage(
+        client,
+        game,
+        message.author.id,
+        "지금은 자유 토론 단계가 아닙니다.",
+        `skip:${message.author.id}`,
+        message.channel,
+      );
+      return;
+    }
+
+    if (!game.isParticipant(message.author.id)) {
+      await this.sendGuidanceMessage(
+        client,
+        game,
+        message.author.id,
+        "현재 라이어게임 참가자만 `!스킵` 으로 토론 조기 종료에 동의할 수 있습니다.",
+        `skip:${message.author.id}`,
+        message.channel,
+      );
+      return;
+    }
+
+    const voters = this.getDiscussionSkipVotes(game.id);
+    if (voters.has(message.author.id)) {
+      await this.sendGuidanceMessage(
+        client,
+        game,
+        message.author.id,
+        "이미 토론 스킵에 동의했습니다.",
+        `skip-duplicate:${message.author.id}`,
+        message.channel,
+      );
+      return;
+    }
+
+    voters.add(message.author.id);
+    const threshold = this.getDiscussionSkipThreshold(game.playerCount);
+    const voter = game.getPlayer(message.author.id);
+
+    if (voters.size >= threshold) {
+      game.beginVote();
+      await this.resetPhaseState(client, game, message.channel);
+      await this.sendPublicMessage(
+        client,
+        game,
+        `${voter?.displayName ?? message.member?.displayName ?? message.author.username} 님의 동의로 토론 스킵이 과반(${voters.size}/${game.playerCount})에 도달했습니다. 이제 \`!투표 @대상\` 형식으로 투표하세요.`,
+        message.channel,
+      );
+      return;
+    }
+
+    await this.syncStatusMessage(client, game, message.channel);
+    await this.sendPublicMessage(
+      client,
+      game,
+      `${voter?.displayName ?? message.member?.displayName ?? message.author.username} 님이 토론 스킵에 동의했습니다. (${voters.size}/${threshold})`,
+      message.channel,
+    );
+  }
+
   private getActiveGame(guildId: string, gameId: string): LiarGame {
     const game = this.registry.get(guildId);
     if (!game || game.id !== gameId) {
@@ -583,6 +653,16 @@ export class LiarDiscordService {
     }
 
     return game;
+  }
+
+  private getDiscussionSkipVotes(gameId: string): Set<string> {
+    let votes = this.discussionSkipVotes.get(gameId);
+    if (!votes) {
+      votes = new Set<string>();
+      this.discussionSkipVotes.set(gameId, votes);
+    }
+
+    return votes;
   }
 
   private async resetPhaseState(
@@ -593,6 +673,10 @@ export class LiarDiscordService {
     preferredHostVoiceChannelId: string | null | undefined = undefined,
   ): Promise<void> {
     const shouldDeleteAfterSync = game.phase === "ended";
+    if (game.phase !== "discussion") {
+      this.discussionSkipVotes.delete(game.id);
+    }
+
     if (shouldDeleteAfterSync) {
       this.clearGuidanceCooldowns(game.id);
       await this.persistEndedGame(game);
@@ -664,6 +748,7 @@ export class LiarDiscordService {
   private clearGameRuntimeState(gameId: string): void {
     this.clearPhaseAutomation(gameId);
     this.clearGuidanceCooldowns(gameId);
+    this.discussionSkipVotes.delete(gameId);
     this.persistedEndedGames.delete(gameId);
   }
 
@@ -771,6 +856,10 @@ export class LiarDiscordService {
 
   private getDiscussionDurationSeconds(game: LiarGame): number {
     return Math.floor(Math.max(60_000, Math.min(120_000, game.playerCount * 15_000)) / 1_000);
+  }
+
+  private getDiscussionSkipThreshold(playerCount: number): number {
+    return Math.floor(playerCount / 2) + 1;
   }
 
   private buildPhaseWarning(game: LiarGame): string | null {
@@ -1124,7 +1213,11 @@ export class LiarDiscordService {
         ].join("\n");
       }
       case "discussion":
-        return `자유 토론 진행 중\n남은 시간: 약 ${game.getRemainingPhaseSeconds() ?? 0}초`;
+        return [
+          "자유 토론 진행 중",
+          `남은 시간: 약 ${game.getRemainingPhaseSeconds() ?? 0}초`,
+          `스킵 동의: ${this.discussionSkipVotes.get(game.id)?.size ?? 0}/${this.getDiscussionSkipThreshold(game.playerCount)}`,
+        ].join("\n");
       case "voting":
         return `투표 진행: ${game.votes.size}/${game.playerCount}`;
       case "guess": {
@@ -1146,7 +1239,10 @@ export class LiarDiscordService {
           `설명 제한 시간: ${Math.floor(CLUE_TIMEOUT_MS / 1_000)}초`,
         ].join("\n");
       case "discussion":
-        return "자유 토론 중입니다. 시간이 끝나면 자동으로 투표가 시작됩니다.";
+        return [
+          "자유 토론 중입니다. 시간이 끝나면 자동으로 투표가 시작됩니다.",
+          `참가자 과반이 \`${PREFIX_SKIP}\` 을 입력하면 즉시 투표 단계로 넘어갑니다.`,
+        ].join("\n");
       case "voting":
         return [
           "투표 형식: `!투표 @대상`",

@@ -1,5 +1,11 @@
 # 라이어게임 제작 계획서
 
+## 관련 문서
+
+- `liar/ABOUT.md`
+- `liar/docs/LIAR_UPGRADE_PROPOSAL.md`
+- `liar/docs/LIAR_RESOURCE_V2_SCHEMA.md`
+
 ## 목표
 
 - 현재 Discord 게임봇에 `마피아`와 별개로 `라이어게임`을 추가한다.
@@ -54,9 +60,10 @@
 - `모드A`: 제시어 카테고리 기반 출제
 - `모드B`: 크로스 카테고리 기반 출제
 - `liar/resource/categories.json` 기반 제시어 로딩
+- `liar/resource/categories.v2.json` 기반 메타데이터/`modeB` 조합 로딩 준비
 - 같은 서버/같은 카테고리 내 최근 제시어 중복 방지
 - `/제시어` 기반 비공개 정보 전달
-- Discord 버튼 + 일반 메시지 + `!투표` 기반 진행
+- Discord 버튼 + 일반 메시지 + 투표 선택 메뉴 + `!투표` 기반 진행
 - 단계별 타이머와 경고 메시지
 - 게임 중 참가자 서버 이탈 시 즉시 취소 종료
 - 설명/투표/추리 단계의 비허용 참가자 메시지 통제
@@ -64,7 +71,7 @@
 - shared business DB 라이어 전적 저장
 - `/liar stats` 기반 Discord 전적 조회
 - 단판 승패 판정
-- `liar/resource/guild-categories.json` 기반 길드별 카테고리 팩 override
+- `liar/resource/guild-categories.json` 기반 길드별 카테고리 팩 override (`v1`/`v2`, 길드 전용 `modeBPairs` 지원)
 
 ## 2차 구현 범위
 
@@ -73,6 +80,7 @@
 - 서버별 제시어 팩 관리 UI/DB
 - 라이어 전적 상세 UI/필터
 - 재접속 복구 또는 재참가 정책
+- UI/UX 재정비와 `단어 리소스 v2` 는 별도 업그레이드 문서 기준으로 진행
 
 ## 권장 디렉토리 구조
 
@@ -110,6 +118,7 @@ liar/
 - `모드B` 는 카테고리를 공개 상태에 노출하지 않고, 시민/라이어 카테고리를 시작 시 자동 배정한다.
 - 게임 종료 후 전적은 현재 `shared business db` 계층에 저장하고, 기본 조회는 `/liar stats` 로 제공한다.
 - 제시어 데이터는 현재 리소스 파일로 분리했고, 길드별 팩도 `guild-categories.json` 으로 override 할 수 있다. 이후 관리 UI 나 DB 로 확장한다.
+- 기본 리소스는 `categories.v2.json` 을 우선 읽고, 구버전 `categories.json` 은 fallback 용도로 유지할 수 있다.
 
 ## 공통 플랫폼과의 접점
 

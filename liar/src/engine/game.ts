@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { getDefaultLiarCategory, getLiarCategories, getLiarCategory, LiarCategory } from "../content/categories";
+import {
+  getDefaultLiarCategory,
+  getLiarCategories,
+  getLiarCategory,
+  getLiarModeBPairs,
+  LiarCategory,
+  LiarCategoryWord,
+} from "../content/categories";
 import {
   LiarClue,
   LiarClueSubmissionResult,
@@ -26,13 +33,91 @@ interface KeywordAssignment {
   readonly word: string;
 }
 
+interface WeightedKeywordAssignment extends KeywordAssignment {
+  readonly weight: number;
+  readonly wordEntry: LiarCategoryWord;
+}
+
 interface ModeBCandidate {
-  readonly citizen: KeywordAssignment;
-  readonly liarAssignments: readonly KeywordAssignment[];
+  readonly citizen: WeightedKeywordAssignment;
+  readonly liarAssignments: readonly WeightedKeywordAssignment[];
+  readonly weight: number;
 }
 
 function normalizeWord(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function getDifficultyWeight(value: string | undefined): number {
+  switch (value) {
+    case "easy":
+      return 6;
+    case "medium":
+      return 3;
+    case "hard":
+      return 1;
+    default:
+      return 3;
+  }
+}
+
+function getToneWeight(value: string | undefined): number {
+  switch (value) {
+    case "familiar":
+      return 3;
+    case "quirky":
+      return 2;
+    case "specialized":
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+function getTagRichnessWeight(tags: readonly string[]): number {
+  if (tags.length === 0) {
+    return 1;
+  }
+
+  return Math.min(3, tags.length + 1);
+}
+
+function getTagAffinityWeight(sourceTags: readonly string[], targetTags: readonly string[]): number {
+  if (sourceTags.length === 0 || targetTags.length === 0) {
+    return 1;
+  }
+
+  const normalizedSource = new Set(sourceTags.map((tag) => normalizeWord(tag)));
+  let overlap = 0;
+  for (const tag of targetTags) {
+    if (normalizedSource.has(normalizeWord(tag))) {
+      overlap += 1;
+    }
+  }
+
+  return overlap > 0 ? Math.min(3, overlap + 1) : 1;
+}
+
+function pickWeighted<T>(items: readonly T[], random: RandomSource, getWeight: (item: T) => number): T {
+  if (items.length === 0) {
+    throw new Error("가중치 선택 후보가 없습니다.");
+  }
+
+  const weightedItems = items.map((item) => ({
+    item,
+    weight: Math.max(1, Math.floor(getWeight(item))),
+  }));
+  const totalWeight = weightedItems.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = random() * totalWeight;
+
+  for (const entry of weightedItems) {
+    roll -= entry.weight;
+    if (roll < 0) {
+      return entry.item;
+    }
+  }
+
+  return weightedItems[weightedItems.length - 1].item;
 }
 
 function assertNonEmpty(value: string, message: string, maxLength: number): string {
@@ -191,8 +276,13 @@ export class LiarGame {
       throw new Error("카테고리는 로비에서만 바꿀 수 있습니다.");
     }
 
-    if (!getLiarCategory(categoryId, this.guildId)) {
+    const category = getLiarCategory(categoryId, this.guildId);
+    if (!category) {
       throw new Error("지원하지 않는 카테고리입니다.");
+    }
+
+    if (!category.modes.modeA) {
+      throw new Error("이 카테고리는 모드A에서 사용할 수 없습니다.");
     }
 
     this.categoryId = categoryId;
@@ -209,6 +299,10 @@ export class LiarGame {
 
   getStartConfigurationError(): string | null {
     if (this.mode === "modeA") {
+      if (this.getWordPool(this.category, [], "modeA").length === 0) {
+        return "현재 카테고리에는 모드A에 사용할 수 있는 제시어가 없습니다.";
+      }
+
       return null;
     }
 
@@ -248,9 +342,9 @@ export class LiarGame {
         throw new Error("모드B 를 시작할 수 있는 크로스 카테고리 제시어 조합이 없습니다.");
       }
 
-      const selectedCandidate = modeBCandidates[Math.floor(random() * modeBCandidates.length)];
+      const selectedCandidate = pickWeighted(modeBCandidates, random, (candidate) => candidate.weight);
       secretAssignment = selectedCandidate.citizen;
-      liarAssignment = selectedCandidate.liarAssignments[Math.floor(random() * selectedCandidate.liarAssignments.length)];
+      liarAssignment = pickWeighted(selectedCandidate.liarAssignments, random, (assignment) => assignment.weight);
       this.categoryId = secretAssignment.category.id;
       this.liarAssignedCategoryId = liarAssignment.category.id;
       this.liarAssignedCategoryLabel = liarAssignment.category.label;
@@ -472,7 +566,18 @@ export class LiarGame {
     }
 
     const sanitized = assertNonEmpty(guess, "추리 단어를 입력하세요.", MAX_GUESS_LENGTH);
-    const isCorrect = normalizeWord(sanitized) === normalizeWord(this.secretWord ?? "");
+    const normalizedGuess = normalizeWord(sanitized);
+    const acceptedAnswers = new Set<string>();
+    if (this.secretWord) {
+      acceptedAnswers.add(normalizeWord(this.secretWord));
+    }
+
+    const secretWordEntry = this.secretWord ? this.findWordEntry(this.category, this.secretWord) : null;
+    for (const alias of secretWordEntry?.aliases ?? []) {
+      acceptedAnswers.add(normalizeWord(alias));
+    }
+
+    const isCorrect = acceptedAnswers.has(normalizedGuess);
     const result: LiarResult = isCorrect
       ? {
           winner: "liar",
@@ -673,20 +778,68 @@ export class LiarGame {
   }
 
   private buildModeBCandidates(excludedWordsByCategoryId: ReadonlyMap<string, readonly string[]>): ModeBCandidate[] {
-    const categories = getLiarCategories(this.guildId);
+    const categories = this.getCategoriesForMode("modeB");
+    const categoriesById = new Map(categories.map((category) => [category.id, category] as const));
+    const configuredPairs = getLiarModeBPairs(this.guildId);
     const candidates: ModeBCandidate[] = [];
 
     for (const citizenCategory of categories) {
-      const citizenWordPool = this.getWordPool(citizenCategory, this.getExcludedWordsForCategory(citizenCategory.id, [], excludedWordsByCategoryId));
-      for (const citizenWord of citizenWordPool) {
+      const citizenWordPool = this.getWordEntryPool(
+        citizenCategory,
+        this.getExcludedWordsForCategory(citizenCategory.id, [], excludedWordsByCategoryId),
+        "modeB",
+      );
+      for (const citizenWordEntry of citizenWordPool) {
+        const citizenWord = citizenWordEntry.value;
+        if (configuredPairs.length > 0) {
+          for (const pair of configuredPairs.filter((entry) => entry.citizenCategoryId === citizenCategory.id)) {
+            const liarCategory = categoriesById.get(pair.liarCategoryId);
+            if (!liarCategory) {
+              continue;
+            }
+
+            const liarAssignments = this.getWordEntryPool(
+              liarCategory,
+              this.getExcludedWordsForCategory(liarCategory.id, [], excludedWordsByCategoryId),
+              "modeB",
+            )
+              .filter((wordEntry) => normalizeWord(wordEntry.value) !== normalizeWord(citizenWord))
+              .map((wordEntry) => ({
+                category: liarCategory,
+                word: wordEntry.value,
+                wordEntry,
+                weight: this.getModeBLiarAssignmentWeight(citizenWordEntry, liarCategory, wordEntry),
+              }));
+
+            if (liarAssignments.length === 0) {
+              continue;
+            }
+
+            candidates.push({
+              citizen: {
+                category: citizenCategory,
+                word: citizenWord,
+                wordEntry: citizenWordEntry,
+                weight: this.getWordSelectionWeight(citizenCategory, citizenWordEntry),
+              },
+              liarAssignments,
+              weight: this.getModeBCandidateWeight(pair, citizenCategory, citizenWordEntry),
+            });
+          }
+
+          continue;
+        }
+
         const liarAssignments = categories
           .filter((category) => category.id !== citizenCategory.id)
           .flatMap((category) =>
-            this.getWordPool(category, this.getExcludedWordsForCategory(category.id, [], excludedWordsByCategoryId))
-              .filter((word) => normalizeWord(word) !== normalizeWord(citizenWord))
-              .map((word) => ({
+            this.getWordEntryPool(category, this.getExcludedWordsForCategory(category.id, [], excludedWordsByCategoryId), "modeB")
+              .filter((wordEntry) => normalizeWord(wordEntry.value) !== normalizeWord(citizenWord))
+              .map((wordEntry) => ({
                 category,
-                word,
+                word: wordEntry.value,
+                wordEntry,
+                weight: this.getModeBLiarAssignmentWeight(citizenWordEntry, category, wordEntry),
               })),
           );
 
@@ -698,8 +851,11 @@ export class LiarGame {
           citizen: {
             category: citizenCategory,
             word: citizenWord,
+            wordEntry: citizenWordEntry,
+            weight: this.getWordSelectionWeight(citizenCategory, citizenWordEntry),
           },
           liarAssignments,
+          weight: this.getWordSelectionWeight(citizenCategory, citizenWordEntry),
         });
       }
     }
@@ -716,18 +872,65 @@ export class LiarGame {
   }
 
   private pickWordAssignment(category: LiarCategory, excludedWords: readonly string[], random: RandomSource): KeywordAssignment {
-    const wordPool = this.getWordPool(category, excludedWords);
-    const keywordIndex = Math.floor(random() * wordPool.length);
+    const wordPool = this.getWordEntryPool(category, excludedWords, "modeA");
+    if (wordPool.length === 0) {
+      throw new Error(`${category.label} 카테고리에는 현재 규칙에서 사용할 수 있는 제시어가 없습니다.`);
+    }
+
+    const selectedWord = pickWeighted(wordPool, random, (wordEntry) => this.getWordSelectionWeight(category, wordEntry));
     return {
       category,
-      word: wordPool[keywordIndex],
+      word: selectedWord.value,
     };
   }
 
-  private getWordPool(category: LiarCategory, excludedWords: readonly string[]): readonly string[] {
+  private getWordEntryPool(category: LiarCategory, excludedWords: readonly string[], mode: LiarMode): readonly LiarCategoryWord[] {
+    const allowedWords = this.getAllowedWordEntries(category, mode);
+    if (allowedWords.length === 0) {
+      return [];
+    }
+
     const excludedWordSet = new Set(excludedWords.map((word) => normalizeWord(word)));
-    const candidateWords = category.words.filter((word) => !excludedWordSet.has(normalizeWord(word)));
-    return candidateWords.length > 0 ? candidateWords : [...category.words];
+    const candidateWords = allowedWords.filter((word) => !excludedWordSet.has(normalizeWord(word.value)));
+    return candidateWords.length > 0 ? candidateWords : allowedWords;
+  }
+
+  private getWordPool(category: LiarCategory, excludedWords: readonly string[], mode: LiarMode): readonly string[] {
+    const allowedWords = this.getWordEntryPool(category, excludedWords, mode).map((word) => word.value);
+    if (allowedWords.length === 0) {
+      return [];
+    }
+
+    return allowedWords;
+  }
+
+  private getAllowedWordEntries(category: LiarCategory, mode: LiarMode): readonly LiarCategoryWord[] {
+    return category.wordsMeta.filter((word) => (mode === "modeA" ? word.modeAAllowed : word.modeBAllowed));
+  }
+
+  private getWordSelectionWeight(category: LiarCategory, wordEntry: LiarCategoryWord): number {
+    return getDifficultyWeight(wordEntry.difficulty ?? category.defaultDifficulty) * getToneWeight(category.tone) * getTagRichnessWeight(wordEntry.tags);
+  }
+
+  private getModeBCandidateWeight(pair: ReturnType<typeof getLiarModeBPairs>[number], category: LiarCategory, wordEntry: LiarCategoryWord): number {
+    return Math.max(1, pair.weight) * getDifficultyWeight(pair.difficulty) * getToneWeight(pair.tone) * this.getWordSelectionWeight(category, wordEntry);
+  }
+
+  private getModeBLiarAssignmentWeight(
+    citizenWordEntry: LiarCategoryWord,
+    liarCategory: LiarCategory,
+    liarWordEntry: LiarCategoryWord,
+  ): number {
+    return this.getWordSelectionWeight(liarCategory, liarWordEntry) * getTagAffinityWeight(citizenWordEntry.tags, liarWordEntry.tags);
+  }
+
+  private getCategoriesForMode(mode: LiarMode): readonly LiarCategory[] {
+    return getLiarCategories(this.guildId).filter((category) => category.modes[mode]);
+  }
+
+  private findWordEntry(category: LiarCategory, value: string): LiarCategoryWord | null {
+    const normalizedValue = normalizeWord(value);
+    return category.wordsMeta.find((word) => normalizeWord(word.value) === normalizedValue) ?? null;
   }
 }
 

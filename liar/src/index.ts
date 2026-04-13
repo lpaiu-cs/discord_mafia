@@ -1,4 +1,4 @@
-export { liarCategories, getLiarCategories, getLiarCategory, hasGuildCategoryOverride } from "./content/categories";
+export { liarCategories, liarModeBPairs, getLiarCategories, getLiarCategory, getLiarModeBPairs, hasGuildCategoryOverride } from "./content/categories";
 export { liarCommand, liarKeywordCommand, LIAR_CREATE_SUBCOMMAND, LIAR_STATS_SUBCOMMAND } from "./discord/commands";
 export {
   DiscordVoiceLiarAudioController,

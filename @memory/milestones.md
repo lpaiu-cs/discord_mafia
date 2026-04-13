@@ -14,15 +14,33 @@
 
 ## M1. `liar` 한 서버 안정화
 
-- 상태: `next`
+- 상태: `in_progress`
 - 목표:
   - 한 서버에서 반복 개최 가능한 안정성 확보
+- 설계 산출물:
+  - `liar/docs/LIAR_UPGRADE_PROPOSAL.md`
+  - `liar/docs/LIAR_RESOURCE_V2_SCHEMA.md`
+  - `liar/resource/categories.v2.sample.json`
+- 현재 완료:
+  - 종료 결과 카드
+  - 리매치 버튼
+  - 종료 카드/리매치 테스트
+  - `/제시어` 개인 상태 카드
+  - 투표 선택 메뉴와 기존 prefix 투표 병행 UX
+  - `v1`/`v2` 겸용 카테고리 로더
+  - 기본 `categories.v2.json`
+  - `modeB` 조합 테이블 로딩
+  - `aliases` 정답 판정
+  - 단어/카테고리 모드 허용값 기반 후보 필터
+  - 길드 override 의 `v2` 카테고리/`modeBPairs` 지원
+  - `difficulty`/`tags`/`tone` 기반 출제 가중치
 - 범위:
   - 리매치 버튼
   - 종료 요약 카드
   - 구조화 로그
   - 방장 운영 버튼 강화
   - 단계별 실패 복구/정리 UX
+  - 상태 메시지 단계별 재구성
 - 테스트:
   - `liar/tests/liar-game.test.ts`
   - `liar/tests/liar-discord-service.test.ts`

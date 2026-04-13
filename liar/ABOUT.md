@@ -10,6 +10,7 @@
 - 버튼: `참가`, `나가기`, `시작`, `투표 시작`, `강제 집계`, `종료`
 - 로비 버튼: `모드A`, `모드B`
 - 로비 select: `카테고리` (`모드A` 일 때만 표시)
+- 투표 select: `투표 대상 선택` (`투표` 단계 상태 카드에 표시)
 - prefix: `!투표 @대상`
 - prefix: `!스킵`
 - 일반 메시지
@@ -30,7 +31,7 @@
 - 서버당 동시 게임 `1개`
 - `모드A`: 제시어 카테고리 기반 출제
 - `모드B`: 크로스 카테고리 기반 출제
-- 제시어 소스: `liar/resource/categories.json`
+- 제시어 소스: `liar/resource/categories.v2.json` 우선, 없으면 `liar/resource/categories.json`
 - 길드별 제시어 팩 소스: `liar/resource/guild-categories.json`
 - 로비에서 `모드A` 또는 `모드B` 선택 가능
 - `/제시어` 기반 개인 정보 전달
@@ -48,10 +49,16 @@
 - 토론 중 참가자 과반이 `!스킵` 을 입력하면 즉시 투표 단계로 넘어감
 - 단계 종료 전 경고 메시지 발송
 - 상태 메시지에 단계, 진행도, 참가자, 남은 시간을 함께 표시
+- `/제시어` 는 개인 카드형 ephemeral 응답으로 현재 단계와 개인 행동 안내를 함께 보여준다
+- 투표 단계는 상태 카드의 선택 메뉴와 `!투표 @대상` 을 함께 지원한다
 - 설명/투표/추리 단계에서 허용되지 않은 참가자 메시지는 정리되거나 안내 메시지로 되돌려진다
 - 게임 시작 뒤 참가자가 서버에서 나가면 해당 판은 즉시 `취소 종료` 된다
 - 같은 서버/같은 카테고리에서는 제시어 풀이 한 번 소진될 때까지 최근 사용 단어를 재사용하지 않는다
 - `모드B` 에서는 시민 카테고리와 라이어 카테고리 둘 다 최근 사용 기록을 반영한다
+- `liar/resource/categories.v2.json` 에 `modeBPairs` 가 있으면 `모드B` 는 해당 조합을 우선 사용한다
+- `categories.v2.json` 의 `aliases` 는 라이어 최종 추리 정답 판정에 반영된다
+- `categories.v2.json` 의 `modes`, `modeAAllowed`, `modeBAllowed` 는 시작 가능 여부와 출제 후보 필터에 반영된다
+- `categories.v2.json` 의 `difficulty`, `tags`, `tone` 는 기본 출제 가중치에 반영되어 `easy`/`familiar` 쪽이 더 자주 선택된다
 - `DATABASE_URL` 이 있으면 종료된 라이어게임이 Postgres shared business DB 에 기록된다
 - `DATABASE_URL` 이 없으면 라이어 전적도 로컬 파일 `mafia/runtime-data/game-stats.json` 에 함께 기록된다
 - `/liar stats` 는 완료/취소 판수, 역할별 전적, 연승, 카테고리별 전적, 최근 경기를 요약해 보여준다
@@ -68,12 +75,17 @@
 ## 길드별 팩 메모
 
 - `liar/resource/guild-categories.json` 의 `mode` 는 `extend` 또는 `replace` 다.
+- 길드 팩은 기존 `v1` 카테고리 배열과 `schemaVersion: 2` 기반 `v2` 구조를 모두 지원한다.
 - `extend`: 기본 카테고리를 유지한 채 길드 전용 카테고리를 추가하거나 같은 id 를 덮어쓴다.
 - `replace`: 해당 길드에서 기본 카테고리 대신 길드 전용 목록만 사용한다.
+- `v2` 길드 팩은 길드 전용 `modeBPairs` 도 함께 정의할 수 있다.
+- `extend` 의 `modeBPairs` 는 기본 조합에 병합되고, `replace` 의 `modeBPairs` 는 길드 팩 전용 조합만 사용한다.
 
 ## 주요 문서
 
 - [liar/RULE.md](./RULE.md): 단일 기준 규칙 문서
 - [liar/PLAN.md](./PLAN.md): 확장 계획과 후속 작업 메모
+- [liar/docs/LIAR_UPGRADE_PROPOSAL.md](./docs/LIAR_UPGRADE_PROPOSAL.md): UI/UX, 리매치, 단어 리소스 업그레이드 제안
+- [liar/docs/LIAR_RESOURCE_V2_SCHEMA.md](./docs/LIAR_RESOURCE_V2_SCHEMA.md): 단어 리소스 v2 스키마 설계
 
 현재 루트 봇 런타임은 `mafia/` 와 `liar/` 를 함께 실행하며, 루트 `build` 와 `test` 도 두 모듈을 함께 다룬다.

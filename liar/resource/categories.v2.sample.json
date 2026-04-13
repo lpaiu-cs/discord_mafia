@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 2,
+  "catalogId": "default-ko-sample",
+  "label": "기본 한국어 라이어 팩 샘플",
+  "locale": "ko-KR",
+  "updatedAt": "2026-04-13",
+  "categories": [
+    {
+      "id": "food",
+      "label": "음식",
+      "description": "일상 음식 중심 카테고리",
+      "theme": "daily-life",
+      "tone": "familiar",
+      "defaultDifficulty": "easy",
+      "tags": ["일상", "명사", "설명쉬움"],
+      "modes": {
+        "modeA": true,
+        "modeB": true
+      },
+      "words": [
+        {
+          "value": "김치찌개",
+          "aliases": ["김치 찌개"],
+          "difficulty": "easy",
+          "tags": ["한식", "국물", "뜨거움"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "한국 사용자 기준 인지도가 높다."
+        },
+        {
+          "value": "햄버거",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["패스트푸드", "빵", "고기"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "짧고 직관적인 단서가 가능하다."
+        },
+        {
+          "value": "마라탕",
+          "aliases": [],
+          "difficulty": "medium",
+          "tags": ["중식", "매운맛", "국물"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "세대별 친숙도 차이가 크지 않은 편이다."
+        }
+      ]
+    },
+    {
+      "id": "place",
+      "label": "장소",
+      "description": "사람들이 자주 떠올릴 수 있는 생활 장소",
+      "theme": "daily-life",
+      "tone": "familiar",
+      "defaultDifficulty": "easy",
+      "tags": ["공간", "일상", "설명쉬움"],
+      "modes": {
+        "modeA": true,
+        "modeB": true
+      },
+      "words": [
+        {
+          "value": "도서관",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["조용함", "책", "공공시설"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "설명 소재가 분명하다."
+        },
+        {
+          "value": "공항",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["여행", "비행기", "넓음"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "일상과 비일상의 중간 정도 느낌이다."
+        },
+        {
+          "value": "카페",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["음료", "실내", "대화"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "다른 카테고리와도 조합이 잘 맞는다."
+        }
+      ]
+    },
+    {
+      "id": "object",
+      "label": "사물",
+      "description": "형태와 용도를 설명하기 쉬운 물건",
+      "theme": "daily-life",
+      "tone": "familiar",
+      "defaultDifficulty": "medium",
+      "tags": ["물건", "촉각", "설명다양"],
+      "modes": {
+        "modeA": true,
+        "modeB": true
+      },
+      "words": [
+        {
+          "value": "우산",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["비", "휴대", "접힘"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "행동 기반 단서가 잘 나온다."
+        },
+        {
+          "value": "헤드폰",
+          "aliases": ["헤드셋"],
+          "difficulty": "medium",
+          "tags": ["소리", "착용", "전자기기"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "별칭 통제가 필요한 예시다."
+        },
+        {
+          "value": "카메라",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["사진", "렌즈", "기록"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "장소/직업과 모두 조합성이 좋다."
+        }
+      ]
+    },
+    {
+      "id": "job",
+      "label": "직업",
+      "description": "역할과 행동 묘사가 쉬운 직업 카테고리",
+      "theme": "work",
+      "tone": "familiar",
+      "defaultDifficulty": "medium",
+      "tags": ["직업", "행동", "설명쉬움"],
+      "modes": {
+        "modeA": true,
+        "modeB": true
+      },
+      "words": [
+        {
+          "value": "요리사",
+          "aliases": ["셰프"],
+          "difficulty": "easy",
+          "tags": ["주방", "칼", "음식"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "음식 카테고리와 간접 연결성이 있다."
+        },
+        {
+          "value": "기자",
+          "aliases": [],
+          "difficulty": "medium",
+          "tags": ["질문", "기사", "취재"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "설명 폭이 넓다."
+        },
+        {
+          "value": "소방관",
+          "aliases": [],
+          "difficulty": "easy",
+          "tags": ["불", "구조", "공공"],
+          "sensitivity": "safe",
+          "modeAAllowed": true,
+          "modeBAllowed": true,
+          "notes": "행동과 상징이 뚜렷하다."
+        }
+      ]
+    }
+  ],
+  "modeBPairs": [
+    {
+      "id": "food-place-daily",
+      "citizenCategoryId": "food",
+      "liarCategoryId": "place",
+      "weight": 4,
+      "difficulty": "easy",
+      "tone": "familiar",
+      "notes": "둘 다 일상 대화 소재라 첫 단서에서 바로 들키지 않는다."
+    },
+    {
+      "id": "object-job-action",
+      "citizenCategoryId": "object",
+      "liarCategoryId": "job",
+      "weight": 3,
+      "difficulty": "medium",
+      "tone": "familiar",
+      "notes": "행동 묘사와 기능 묘사가 섞여 심리전이 잘 생긴다."
+    },
+    {
+      "id": "place-object-sensory",
+      "citizenCategoryId": "place",
+      "liarCategoryId": "object",
+      "weight": 2,
+      "difficulty": "medium",
+      "tone": "familiar",
+      "notes": "장소의 분위기와 사물의 기능이 섞여 애매한 단서가 나온다."
+    }
+  ]
+}

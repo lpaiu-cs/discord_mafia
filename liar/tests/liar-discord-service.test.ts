@@ -75,7 +75,7 @@ function createFakeMessage(overrides: Partial<any>) {
 }
 
 function createFakeCommandInteraction(commandName: string, overrides: Partial<any> = {}) {
-  const replies: Array<{ content: string; flags?: number }> = [];
+  const replies: any[] = [];
   const interaction = {
     commandName,
     user: { id: "host", username: "방장" },
@@ -91,13 +91,13 @@ function createFakeCommandInteraction(commandName: string, overrides: Partial<an
     async deferReply() {
       interaction.deferred = true;
     },
-    async editReply(payload: { content: string; flags?: number }) {
+    async editReply(payload: any) {
       replies.push(payload);
     },
-    async reply(payload: { content: string; flags?: number }) {
+    async reply(payload: any) {
       replies.push(payload);
     },
-    async followUp(payload: { content: string; flags?: number }) {
+    async followUp(payload: any) {
       replies.push(payload);
     },
     ...overrides,
@@ -395,6 +395,84 @@ test("취소 종료된 게임은 상태 메시지 갱신 뒤 음성 연결도 �
   assert.ok(audio.calls.includes("destroy:guild-1"));
 });
 
+test("종료 상태 메시지는 결과 카드와 리매치 버튼을 렌더링한다", async () => {
+  const { service, game } = createServiceWithGame();
+  const channel = createFakeChannel();
+  const client = { channels: { fetch: async () => channel } } as any;
+
+  const rolls = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  game.start(() => rolls.shift() ?? 0);
+  while (game.phase === "clue") {
+    const speaker = game.getCurrentSpeaker()!;
+    game.submitClue(speaker.userId, `${speaker.displayName} 설명`);
+  }
+  game.beginVote();
+  game.submitVote("host", "host");
+  game.submitVote("p1", "host");
+  game.submitVote("p2", "host");
+  game.submitVote("p3", "p1");
+  game.guessWord("host", "초밥");
+
+  await (service as any).resetPhaseState(client, game, channel);
+
+  const lastPayload = channel.sent.at(-1);
+  assert.ok(lastPayload);
+  assert.equal(lastPayload?.embeds?.[0]?.data?.title, "라이어게임 결과");
+
+  const fieldNames = (lastPayload?.embeds?.[0]?.data?.fields ?? []).map((field: any) => field.name);
+  assert.ok(fieldNames.includes("결과 요약"));
+  assert.ok(fieldNames.includes("공개 정보"));
+  assert.ok(fieldNames.includes("투표 요약"));
+
+  const rematchRow = lastPayload?.components?.[0] as any;
+  assert.equal(rematchRow?.components?.[0]?.data?.custom_id, `liar:rematch:${game.id}`);
+  assert.equal(rematchRow?.components?.[0]?.data?.label, "리매치");
+});
+
+test("리매치 버튼은 종료된 게임 설정으로 새 로비를 만든다", async () => {
+  const audio = createFakeAudioController();
+  const { service, game } = createServiceWithGame();
+  (service as any).audioController = audio.controller;
+  const channel = createFakeChannel();
+  const client = { channels: { fetch: async () => channel } } as any;
+
+  game.setMode("modeB");
+  game.forceEnd("리매치 테스트 종료");
+  await (service as any).resetPhaseState(client, game, channel, {
+    id: "guild-1",
+    name: "테스트 길드",
+  });
+
+  const { interaction, replies } = createFakeButtonInteraction(`liar:rematch:${game.id}`, {
+    channel,
+    guildId: "guild-1",
+    guild: {
+      id: "guild-1",
+      name: "테스트 길드",
+      members: {
+        fetch: async () => ({ displayName: "방장", voice: { channelId: "voice-1" } }),
+      },
+    },
+    user: { id: "host", username: "방장" },
+  });
+
+  const handled = await service.handleButton(client, interaction as any);
+
+  assert.equal(handled, true);
+  assert.equal(replies.length, 1);
+  assert.match(replies[0].content, /리매치 로비/);
+
+  const rematchGame = (service as any).registry.get("guild-1");
+  assert.ok(rematchGame);
+  assert.notEqual(rematchGame.id, game.id);
+  assert.equal(rematchGame.phase, "lobby");
+  assert.equal(rematchGame.mode, "modeB");
+  assert.equal(rematchGame.categoryId, game.categoryId);
+  assert.ok(audio.calls.includes("destroy:guild-1"));
+  assert.ok(audio.calls.includes("sync:lobby"));
+  assert.ok(channel.sent.some((payload) => payload.embeds?.[0]?.data?.title === "라이어게임 로비"));
+});
+
 test("로비의 모드 버튼으로 modeB 를 고를 수 있다", async () => {
   const { service, game } = createServiceWithGame();
   const channel = createFakeChannel();
@@ -453,6 +531,118 @@ test("modeA 일 때만 카테고리 선택 메뉴가 렌더링된다", async () 
   game.setMode("modeB");
   const modeBComponents = (service as any).buildStatusPayload(game).components;
   assert.equal(modeBComponents.length, 2);
+});
+
+test("설명 단계 상태 카드는 현재 차례와 참가자 진행 상태를 함께 보여준다", () => {
+  const { service, game } = createServiceWithGame();
+  const rolls = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  game.start(() => rolls.shift() ?? 0);
+
+  const firstSpeaker = game.getCurrentSpeaker()!;
+  game.submitClue(firstSpeaker.userId, `${firstSpeaker.displayName} 설명`);
+
+  const payload = (service as any).buildStatusPayload(game);
+  const embed = payload.embeds[0].data;
+  const fields = embed.fields ?? [];
+  const participantField = fields.find((field: any) => field.name === "참가 현황");
+  const currentActionField = fields.find((field: any) => field.name === "지금 할 일");
+  const progressField = fields.find((field: any) => field.name === "진행 요약");
+
+  assert.ok(participantField);
+  assert.ok(currentActionField);
+  assert.ok(progressField);
+  assert.match(participantField.value, /완료/);
+  assert.match(participantField.value, /현재/);
+  assert.match(currentActionField.value, /채널에 일반 메시지 한 줄/);
+  assert.match(progressField.value, /설명 순서/);
+});
+
+test("투표 단계 상태 카드는 미투표 인원과 제출 상태를 보여준다", () => {
+  const { service, game } = createServiceWithGame();
+  const rolls = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  game.start(() => rolls.shift() ?? 0);
+  while (game.phase === "clue") {
+    const speaker = game.getCurrentSpeaker()!;
+    game.submitClue(speaker.userId, `${speaker.displayName} 설명`);
+  }
+
+  game.beginVote();
+  game.submitVote("host", "p1");
+  game.submitVote("p1", "host");
+
+  const payload = (service as any).buildStatusPayload(game);
+  const embed = payload.embeds[0].data;
+  const fields = embed.fields ?? [];
+  const participantField = fields.find((field: any) => field.name === "참가 현황");
+  const currentActionField = fields.find((field: any) => field.name === "지금 할 일");
+  const progressField = fields.find((field: any) => field.name === "진행 요약");
+  const voteSelectRow = payload.components.find(
+    (row: any) => row?.components?.[0]?.data?.custom_id === `liar-vote:${game.id}`,
+  );
+
+  assert.ok(participantField);
+  assert.ok(currentActionField);
+  assert.ok(progressField);
+  assert.ok(voteSelectRow);
+  assert.match(participantField.value, /투표완료/);
+  assert.match(participantField.value, /미투표/);
+  assert.match(currentActionField.value, /선택 메뉴/);
+  assert.match(progressField.value, /남은 투표/);
+});
+
+test("투표 선택 메뉴로도 표를 제출할 수 있다", async () => {
+  const { service, game } = createServiceWithGame();
+  const channel = createFakeChannel();
+  const client = { channels: { fetch: async () => channel } } as any;
+  const rolls = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  game.start(() => rolls.shift() ?? 0);
+  while (game.phase === "clue") {
+    const speaker = game.getCurrentSpeaker()!;
+    game.submitClue(speaker.userId, `${speaker.displayName} 설명`);
+  }
+
+  game.beginVote();
+
+  const { interaction, replies } = createFakeSelectInteraction(`liar-vote:${game.id}`, {
+    channelId: "channel-1",
+    channel,
+    guildId: "guild-1",
+    user: { id: "p2", username: "서윤" },
+    values: ["host"],
+  });
+
+  const handled = await service.handleSelect(client, interaction as any);
+
+  assert.equal(handled, true);
+  assert.equal(game.votes.get("p2")?.targetId, "host");
+  assert.match(replies[0]?.content ?? "", /방장 님에게 투표했습니다/);
+  assert.ok(channel.sent.some((payload) => typeof payload.content === "string" && payload.content.includes("서윤 님이 방장 님에게 투표했습니다")));
+});
+
+test("/제시어 는 개인 상태 카드와 현재 행동 안내를 함께 보여준다", async () => {
+  const { service, game } = createServiceWithGame();
+  const rolls = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+  game.start(() => rolls.shift() ?? 0);
+  const currentSpeaker = game.getCurrentSpeaker()!;
+
+  const { interaction, replies } = createFakeCommandInteraction("제시어", {
+    guildId: "guild-1",
+    user: { id: currentSpeaker.userId, username: currentSpeaker.displayName },
+  });
+
+  const handled = await service.handleCommand({} as any, interaction as any);
+
+  assert.equal(handled, true);
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0].embeds?.[0]?.data?.title, "개인 제시어");
+
+  const fields = replies[0].embeds?.[0]?.data?.fields ?? [];
+  const fieldNames = fields.map((field: any) => field.name);
+  assert.ok(fieldNames.includes("상태"));
+  assert.ok(fieldNames.includes("카테고리"));
+  assert.ok(fieldNames.includes("제시어"));
+  assert.ok(fieldNames.includes("지금 할 일"));
+  assert.match(fields.find((field: any) => field.name === "지금 할 일")?.value ?? "", /지금 당신 차례/);
 });
 
 test("/liar create 는 새 로비 임베드 상태 메시지를 띄운다", async () => {

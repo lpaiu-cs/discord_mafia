@@ -33,6 +33,152 @@
           ]
         }
       ]
+    },
+    "example-v2-extend-pack": {
+      "mode": "extend",
+      "schemaVersion": 2,
+      "categories": [
+        {
+          "id": "sports",
+          "label": "스포츠",
+          "description": "생활 스포츠 중심 확장 팩",
+          "theme": "sports",
+          "tone": "familiar",
+          "defaultDifficulty": "easy",
+          "tags": ["운동", "스포츠"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "축구", "aliases": ["사커"], "difficulty": "easy", "tags": ["구기"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "야구", "aliases": [], "difficulty": "easy", "tags": ["구기"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "농구", "aliases": [], "difficulty": "easy", "tags": ["구기"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "수영", "aliases": [], "difficulty": "easy", "tags": ["물"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        }
+      ],
+      "modeBPairs": [
+        { "id": "guild-food-sports", "citizenCategoryId": "food", "liarCategoryId": "sports", "weight": 5, "difficulty": "easy", "tone": "familiar", "notes": "길드 스포츠 확장 팩용 조합" }
+      ]
+    },
+    "example-v2-replace-pack": {
+      "mode": "replace",
+      "schemaVersion": 2,
+      "categories": [
+        {
+          "id": "weather",
+          "label": "날씨",
+          "description": "날씨 묘사 중심 카테고리",
+          "theme": "nature",
+          "tone": "familiar",
+          "defaultDifficulty": "easy",
+          "tags": ["자연", "날씨"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "비", "aliases": ["빗방울"], "difficulty": "easy", "tags": ["강수"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "눈", "aliases": ["설원"], "difficulty": "easy", "tags": ["겨울"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "태풍", "aliases": [], "difficulty": "medium", "tags": ["강풍"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        },
+        {
+          "id": "music",
+          "label": "음악",
+          "description": "음악 장르 중심 카테고리",
+          "theme": "culture",
+          "tone": "familiar",
+          "defaultDifficulty": "medium",
+          "tags": ["문화", "음악"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "발라드", "aliases": [], "difficulty": "easy", "tags": ["장르"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "재즈", "aliases": [], "difficulty": "medium", "tags": ["장르"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" },
+            { "value": "힙합", "aliases": ["랩"], "difficulty": "easy", "tags": ["장르"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        }
+      ],
+      "modeBPairs": [
+        { "id": "weather-music", "citizenCategoryId": "weather", "liarCategoryId": "music", "weight": 4, "difficulty": "medium", "tone": "quirky", "notes": "교체 팩 전용 조합" }
+      ]
+    },
+    "example-v2-weight-pack": {
+      "mode": "replace",
+      "schemaVersion": 2,
+      "categories": [
+        {
+          "id": "weighted",
+          "label": "가중치테스트",
+          "description": "difficulty 가중치 검증용 카테고리",
+          "theme": "test",
+          "tone": "familiar",
+          "defaultDifficulty": "medium",
+          "tags": ["테스트"],
+          "modes": { "modeA": true, "modeB": false },
+          "words": [
+            { "value": "쉬운단어", "aliases": [], "difficulty": "easy", "tags": ["친숙"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": false, "notes": "" },
+            { "value": "어려운단어", "aliases": [], "difficulty": "hard", "tags": ["전문"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": false, "notes": "" }
+          ]
+        }
+      ]
+    },
+    "example-v2-pair-weight-pack": {
+      "mode": "replace",
+      "schemaVersion": 2,
+      "categories": [
+        {
+          "id": "daily-food",
+          "label": "일상음식",
+          "description": "쉬운 일상 음식",
+          "theme": "daily-life",
+          "tone": "familiar",
+          "defaultDifficulty": "easy",
+          "tags": ["일상"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "사과", "aliases": [], "difficulty": "easy", "tags": ["과일", "일상"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        },
+        {
+          "id": "daily-place",
+          "label": "일상장소",
+          "description": "쉬운 일상 장소",
+          "theme": "daily-life",
+          "tone": "familiar",
+          "defaultDifficulty": "easy",
+          "tags": ["일상"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "공원", "aliases": [], "difficulty": "easy", "tags": ["야외", "일상"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        },
+        {
+          "id": "deep-science",
+          "label": "전문과학",
+          "description": "전문 과학 용어",
+          "theme": "science",
+          "tone": "specialized",
+          "defaultDifficulty": "hard",
+          "tags": ["과학"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "양자역학", "aliases": [], "difficulty": "hard", "tags": ["과학"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        },
+        {
+          "id": "deep-bio",
+          "label": "전문생물",
+          "description": "전문 생물 용어",
+          "theme": "science",
+          "tone": "specialized",
+          "defaultDifficulty": "hard",
+          "tags": ["과학"],
+          "modes": { "modeA": true, "modeB": true },
+          "words": [
+            { "value": "엽록체", "aliases": [], "difficulty": "hard", "tags": ["과학"], "sensitivity": "safe", "modeAAllowed": true, "modeBAllowed": true, "notes": "" }
+          ]
+        }
+      ],
+      "modeBPairs": [
+        { "id": "daily-pair", "citizenCategoryId": "daily-food", "liarCategoryId": "daily-place", "weight": 1, "difficulty": "easy", "tone": "familiar", "notes": "가중치 우선 후보" },
+        { "id": "deep-pair", "citizenCategoryId": "deep-science", "liarCategoryId": "deep-bio", "weight": 1, "difficulty": "hard", "tone": "specialized", "notes": "가중치 열세 후보" }
+      ]
     }
   }
 }

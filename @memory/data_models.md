@@ -17,6 +17,7 @@
 
 - `liar/src/engine/model.ts`
 - `liar/src/engine/game.ts`
+- `liar/src/content/categories.ts`
 
 ### 핵심 타입
 
@@ -71,6 +72,58 @@
   - joined order, host 여부, liar 여부, accused 여부, 승패, clue 제출 여부, vote 대상
 - `LiarPlayerStats`
   - lifetime, streaks, categoryStats, recentMatches
+
+### 라이어 Discord 서비스 런타임 상태
+
+기준 파일:
+
+- `liar/src/discord/service.ts`
+
+추가 메모:
+
+- `persistedEndedGames`
+  - 종료 콜백 중복 실행 방지
+- `discussionSkipVotes`
+  - 토론 스킵 동의 집계
+- `recentEndedGames`
+  - 종료된 판의 리매치 버튼을 위해 길드별 최근 종료 게임을 잠시 보관
+  - active registry 에서 제거된 뒤에도 `리매치` 컨트롤 검증에 사용
+
+### 라이어 콘텐츠 리소스 모델
+
+현재 런타임 기준 파일:
+
+- `liar/resource/categories.v2.json`
+- `liar/resource/categories.json`
+- `liar/src/content/categories.ts`
+
+현재 `v1` 구조:
+
+- 카테고리 단위
+  - `id`, `label`, `words: string[]`
+
+설계 중 `v2` 구조:
+
+- 기준 문서:
+  - `liar/docs/LIAR_RESOURCE_V2_SCHEMA.md`
+  - `liar/resource/categories.v2.sample.json`
+- 최상위:
+  - `schemaVersion`, `catalogId`, `label`, `locale`, `updatedAt`, `categories`, `modeBPairs`
+- 카테고리:
+  - `id`, `label`, `description`, `theme`, `tone`, `defaultDifficulty`, `tags`, `modes`, `words`, `wordsMeta`
+- 단어:
+  - `value`, `aliases`, `difficulty`, `tags`, `sensitivity`, `modeAAllowed`, `modeBAllowed`, `notes`
+- `modeB` 조합:
+  - `citizenCategoryId`, `liarCategoryId`, `weight`, `difficulty`, `tone`, `notes`
+
+현재 상태:
+
+- 로더는 `categories.v2.json` 을 우선 읽고, 없으면 `categories.json` 으로 fallback 한다.
+- `modeBPairs` 가 존재하면 `modeB` 후보 생성은 그 조합 테이블을 우선 사용한다.
+- `wordsMeta` 는 런타임에도 유지되고, `aliases` 는 라이어 최종 추리 정답 판정에 사용된다.
+- 카테고리 `modes` 와 단어 `modeAAllowed` / `modeBAllowed` 는 시작 가능 여부와 후보 생성에 반영된다.
+- 길드 override 는 `guild-categories.json` 에서 `v1` 카테고리 배열과 `schemaVersion: 2` 구조를 모두 지원한다.
+- 길드 `v2` override 는 카테고리뿐 아니라 길드 전용 `modeBPairs` 도 함께 정의할 수 있다.
 
 ## `mafia` 핵심 모델
 

@@ -25,6 +25,10 @@
   - 운영 구조와 입력 체계 설명
 - `PLAN.md`
   - 라이어 확장 계획
+- `docs/LIAR_UPGRADE_PROPOSAL.md`
+  - UI/UX, 종료 경험, 리매치, 리소스 업그레이드 제안
+- `docs/LIAR_RESOURCE_V2_SCHEMA.md`
+  - 단어 리소스 v2 스키마 설계
 - `RULE.md`
   - 라이어 규칙 기준 문서
 - `src/index.ts`
@@ -45,6 +49,10 @@
   - 엔진, 카테고리, Discord 서비스 테스트
 - `resource/`
   - 카테고리 JSON, 오디오 자원
+- `resource/categories.v2.json`
+  - 현재 기본 카테고리/단어/`modeB` 조합 리소스
+- `resource/categories.v2.sample.json`
+  - 차세대 카테고리/단어 메타데이터 샘플
 
 ## `mafia/`
 
